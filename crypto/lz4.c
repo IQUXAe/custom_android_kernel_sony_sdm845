@@ -54,7 +54,7 @@ static int lz4_compress_crypto(struct crypto_tfm *tfm, const u8 *src,
 
 	err = LZ4_compress_default(src, dst, slen, tmp_len, ctx->lz4_comp_mem);
 
-	if (err < 0)
+	if (err <= 0)
 		return -EINVAL;
 
 	*dlen = err;
