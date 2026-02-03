@@ -3617,11 +3617,13 @@ err_invalid_target_handle:
 		binder_dec_node_tmpref(target_node);
 	}
 
+/*
 	binder_debug(BINDER_DEBUG_FAILED_TRANSACTION,
 		     "%d:%d transaction failed %d/%d, size %lld-%lld line %d\n",
 		     proc->pid, thread->pid, return_error, return_error_param,
 		     (u64)tr->data_size, (u64)tr->offsets_size,
 		     return_error_line);
+*/
 
 	{
 		struct binder_transaction_log_entry *fe;
