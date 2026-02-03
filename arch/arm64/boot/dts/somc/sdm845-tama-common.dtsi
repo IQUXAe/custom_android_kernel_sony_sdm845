@@ -203,7 +203,7 @@
 			    &pm8998_gpio_21
 			    &pmi8998_gpio_1 &pmi8998_gpio_2 &pmi8998_gpio_3 &pmi8998_gpio_5 &pmi8998_gpio_6
 			    &pmi8998_gpio_8 &pmi8998_gpio_9 &pmi8998_gpio_10 &pmi8998_gpio_11
-			    &pmi8998_gpio_12 &pmi8998_gpio_14 &pm8005_gpio_1 &pm8005_gpio_2>;
+			    &pmi8998_gpio_14 &pm8005_gpio_1 &pm8005_gpio_2>;
 
 		/* If product common PMIC default setting is needed,
 		fill pinctrl-1 value in <product>_common.dtsi */
