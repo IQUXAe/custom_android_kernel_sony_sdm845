@@ -164,10 +164,12 @@ STATIC inline int INIT unlz4(u8 *input, long in_len,
 		dest_len = uncomp_chunksize;
 		ret = LZ4_decompress_safe(inp, outp, chunksize, dest_len);
 #endif
+
 		if (ret < 0) {
 			error("Decoding failed");
 			goto exit_2;
 		}
+		dest_len = ret;
 
 		ret = -1;
 		if (flush && flush(outp, dest_len) != dest_len)
