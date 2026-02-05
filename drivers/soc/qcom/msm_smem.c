@@ -458,7 +458,8 @@ static void *__smem_get_entry_secure(unsigned int id,
 								partition_num,
 								to_proc,
 								hdr);
-		BUG();
+		WARN_ON(1);
+		return NULL;
 	}
 
 	if (flags & SMEM_ITEM_CACHED_FLAG) {
@@ -485,7 +486,8 @@ static void *__smem_get_entry_secure(unsigned int id,
 								partition_num,
 								to_proc,
 								alloc_hdr);
-				BUG();
+				WARN_ON(1);
+				return NULL;
 
 			}
 			if (alloc_hdr->smem_type == id) {
@@ -521,7 +523,8 @@ static void *__smem_get_entry_secure(unsigned int id,
 								partition_num,
 								to_proc,
 								alloc_hdr);
-				BUG();
+				WARN_ON(1);
+				return NULL;
 
 			}
 			if (alloc_hdr->smem_type == id) {
@@ -710,7 +713,8 @@ static void *alloc_item_secure(unsigned int id, unsigned int size_in,
 								partition_num,
 								to_proc,
 								hdr);
-		BUG();
+		WARN_ON(1);
+		return NULL;
 	}
 
 	toc = smem_get_toc();
@@ -1303,19 +1307,23 @@ static void smem_init_security_partition(struct smem_toc_entry *entry,
 
 	if (hdr->identifier != SMEM_PART_HDR_IDENTIFIER) {
 		LOG_ERR("Smem partition %d hdr magic is bad\n", num);
-		BUG();
+		WARN_ON(1);
+		return;
 	}
 	if (hdr->size != entry->size) {
 		LOG_ERR("Smem partition %d size is invalid\n", num);
-		BUG();
+		WARN_ON(1);
+		return;
 	}
 	if (hdr->offset_free_uncached > hdr->size) {
 		LOG_ERR("Smem partition %d uncached heap exceeds size\n", num);
-		BUG();
+		WARN_ON(1);
+		return;
 	}
 	if (hdr->offset_free_cached > hdr->size) {
 		LOG_ERR("Smem partition %d cached heap exceeds size\n", num);
-		BUG();
+		WARN_ON(1);
+		return;
 	}
 	if (is_comm_partition) {
 		if (hdr->host0 == SMEM_COMM_HOST
@@ -1333,11 +1341,13 @@ static void smem_init_security_partition(struct smem_toc_entry *entry,
 	}
 	if (hdr->host0 != SMEM_APPS && hdr->host1 != SMEM_APPS) {
 		LOG_ERR("Smem partition %d hosts don't match TOC\n", num);
-		BUG();
+		WARN_ON(1);
+		return;
 	}
 	if (hdr->host0 != remote_host && hdr->host1 != remote_host) {
 		LOG_ERR("Smem partition %d hosts don't match TOC\n", num);
-		BUG();
+		WARN_ON(1);
+		return;
 	}
 
 	partitions[remote_host].partition_num = num;

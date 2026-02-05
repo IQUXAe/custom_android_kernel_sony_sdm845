@@ -193,7 +193,7 @@ static ssize_t hotplug_disable_show(struct kobject *kobj,
 {
 	unsigned int val = rq_info.hotplug_disabled;
 
-	return snprintf(buf, MAX_LONG_SIZE, "%d\n", val);
+	return scnprintf(buf, MAX_LONG_SIZE, "%d\n", val);
 }
 
 static struct kobj_attribute hotplug_disabled_attr = __ATTR_RO(hotplug_disable);
@@ -216,7 +216,7 @@ static ssize_t run_queue_avg_show(struct kobject *kobj,
 	rq_info.rq_avg = 0;
 	spin_unlock_irqrestore(&rq_lock, flags);
 
-	return snprintf(buf, PAGE_SIZE, "%d.%d\n", val/10, val%10);
+	return scnprintf(buf, PAGE_SIZE, "%d.%d\n", val/10, val%10);
 }
 
 static struct kobj_attribute run_queue_avg_attr = __ATTR_RO(run_queue_avg);
@@ -228,7 +228,7 @@ static ssize_t show_run_queue_poll_ms(struct kobject *kobj,
 	unsigned long flags = 0;
 
 	spin_lock_irqsave(&rq_lock, flags);
-	ret = snprintf(buf, MAX_LONG_SIZE, "%u\n",
+	ret = scnprintf(buf, MAX_LONG_SIZE, "%u\n",
 		       jiffies_to_msecs(rq_info.rq_poll_jiffies));
 	spin_unlock_irqrestore(&rq_lock, flags);
 
@@ -271,7 +271,7 @@ static ssize_t show_def_timer_ms(struct kobject *kobj,
 	do_div(diff, 1000 * 1000);
 	udiff = (unsigned int) diff;
 
-	return snprintf(buf, MAX_LONG_SIZE, "%u\n", udiff);
+	return scnprintf(buf, MAX_LONG_SIZE, "%u\n", udiff);
 }
 
 static ssize_t store_def_timer_ms(struct kobject *kobj,
@@ -295,7 +295,7 @@ static struct kobj_attribute def_timer_ms_attr =
 static ssize_t show_cpu_normalized_load(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
-	return snprintf(buf, MAX_LONG_SIZE, "%u\n", report_load_at_max_freq());
+	return scnprintf(buf, MAX_LONG_SIZE, "%u\n", report_load_at_max_freq());
 }
 
 static struct kobj_attribute cpu_normalized_load_attr =
@@ -350,7 +350,8 @@ static int __init msm_rq_stats_init(void)
 #endif
 
 	rq_wq = create_singlethread_workqueue("rq_stats");
-	BUG_ON(!rq_wq);
+	if (!rq_wq)
+		return -ENOMEM;
 	INIT_WORK(&rq_info.def_timer_work, def_work_fn);
 	spin_lock_init(&rq_lock);
 	rq_info.rq_poll_jiffies = DEFAULT_RQ_POLL_JIFFIES;

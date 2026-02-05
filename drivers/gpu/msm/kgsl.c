@@ -602,7 +602,7 @@ int kgsl_context_init(struct kgsl_device_private *dev_priv,
 		goto out;
 	}
 
-	snprintf(name, sizeof(name), "context-%d", id);
+	scnprintf(name, sizeof(name), "context-%d", id);
 	kgsl_add_event_group(&context->events, context, name,
 		kgsl_readtimestamp, context);
 
@@ -678,7 +678,7 @@ kgsl_context_destroy(struct kref *kref)
 	 * It's not safe to destroy the context if it's not detached as GPU
 	 * may still be executing commands
 	 */
-	BUG_ON(!kgsl_context_detached(context));
+	WARN_ON(!kgsl_context_detached(context));
 
 	write_lock(&device->context_lock);
 	if (context->id != KGSL_CONTEXT_INVALID) {
@@ -1082,7 +1082,7 @@ static int kgsl_close_device(struct kgsl_device *device)
 		kgsl_active_count_wait(device, 0);
 
 		/* Fail if the wait times out */
-		BUG_ON(atomic_read(&device->active_cnt) > 0);
+		WARN_ON(atomic_read(&device->active_cnt) > 0);
 
 		result = kgsl_pwrctrl_change_state(device, KGSL_STATE_INIT);
 	}
@@ -1196,7 +1196,8 @@ static int kgsl_open(struct inode *inodep, struct file *filep)
 	unsigned int minor = iminor(inodep);
 
 	device = kgsl_get_minor(minor);
-	BUG_ON(device == NULL);
+	if (WARN_ON(!device))
+		return -ENODEV;
 
 	result = pm_runtime_get_sync(&device->pdev->dev);
 	if (result < 0) {

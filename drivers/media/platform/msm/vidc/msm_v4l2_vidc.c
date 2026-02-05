@@ -370,9 +370,9 @@ static ssize_t msm_vidc_link_name_show(struct device *dev,
 
 	if (core)
 		if (dev == &core->vdev[MSM_VIDC_DECODER].vdev.dev)
-			return snprintf(buf, PAGE_SIZE, "venus_dec");
+			return scnprintf(buf, PAGE_SIZE, "venus_dec");
 		else if (dev == &core->vdev[MSM_VIDC_ENCODER].vdev.dev)
-			return snprintf(buf, PAGE_SIZE, "venus_enc");
+			return scnprintf(buf, PAGE_SIZE, "venus_enc");
 		else
 			return 0;
 	else
@@ -412,7 +412,7 @@ static ssize_t show_pwr_collapse_delay(struct device *dev,
 	if (!core)
 		return -EINVAL;
 
-	return snprintf(buf, PAGE_SIZE, "%u\n",
+	return scnprintf(buf, PAGE_SIZE, "%u\n",
 		core->resources.msm_vidc_pwr_collapse_delay);
 }
 
@@ -423,7 +423,8 @@ static ssize_t show_thermal_level(struct device *dev,
 		struct device_attribute *attr,
 		char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "%d\n", vidc_driver->thermal_level);
+	return scnprintf(buf, PAGE_SIZE, "%d\n",
+			vidc_driver->thermal_level);
 }
 
 static ssize_t store_thermal_level(struct device *dev,
