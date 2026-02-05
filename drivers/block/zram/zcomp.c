@@ -73,6 +73,11 @@ bool zcomp_available_algorithm(const char *comp)
 {
 	int i = 0;
 
+#ifdef CONFIG_ZRAM_LZ4_AUTHORITATIVE
+	if (!sysfs_streq(comp, "lz4"))
+		return false;
+#endif
+
 	while (backends[i]) {
 		if (sysfs_streq(comp, backends[i]))
 			return true;

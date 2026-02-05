@@ -14,6 +14,15 @@ config ZRAM
 
 	  See Documentation/blockdev/zram.txt for more information.
 
+config ZRAM_LZ4_AUTHORITATIVE
+	bool "Force usage of LZ4 as ZRAM compression algorithm"
+	depends on ZRAM
+	select CRYPTO_LZ4
+	default n
+	help
+	  This option forces the usage of LZ4 as the ZRAM compression algorithm.
+	  It overrides the default compressor selection.
+
 config ZRAM_WRITEBACK
        bool "Write back incompressible or idle page to backing device"
        depends on ZRAM
