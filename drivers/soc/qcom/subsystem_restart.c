@@ -234,7 +234,7 @@ static struct subsys_tracking *subsys_get_track(struct subsys_device *subsys)
 static ssize_t name_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "%s\n", to_subsys(dev)->desc->name);
+	return scnprintf(buf, PAGE_SIZE, "%s\n", to_subsys(dev)->desc->name);
 }
 
 static ssize_t state_show(struct device *dev, struct device_attribute *attr,
@@ -242,13 +242,13 @@ static ssize_t state_show(struct device *dev, struct device_attribute *attr,
 {
 	enum subsys_state state = to_subsys(dev)->track.state;
 
-	return snprintf(buf, PAGE_SIZE, "%s\n", subsys_states[state]);
+	return scnprintf(buf, PAGE_SIZE, "%s\n", subsys_states[state]);
 }
 
 static ssize_t crash_count_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "%d\n", to_subsys(dev)->crash_count);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", to_subsys(dev)->crash_count);
 }
 
 static ssize_t
@@ -256,7 +256,7 @@ restart_level_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	int level = to_subsys(dev)->restart_level;
 
-	return snprintf(buf, PAGE_SIZE, "%s\n", restart_levels[level]);
+	return scnprintf(buf, PAGE_SIZE, "%s\n", restart_levels[level]);
 }
 
 static ssize_t restart_level_store(struct device *dev,
@@ -281,7 +281,7 @@ static ssize_t restart_level_store(struct device *dev,
 static ssize_t firmware_name_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "%s\n", to_subsys(dev)->desc->fw_name);
+	return scnprintf(buf, PAGE_SIZE, "%s\n", to_subsys(dev)->desc->fw_name);
 }
 
 static ssize_t firmware_name_store(struct device *dev,
@@ -298,8 +298,7 @@ static ssize_t firmware_name_store(struct device *dev,
 
 	pr_info("Changing subsys fw_name to %s\n", buf);
 	mutex_lock(&track->lock);
-	strlcpy(subsys->desc->fw_name, buf,
-			min(count + 1, sizeof(subsys->desc->fw_name)));
+	strscpy(subsys->desc->fw_name, buf, sizeof(subsys->desc->fw_name));
 	mutex_unlock(&track->lock);
 	return orig_count;
 }
@@ -311,9 +310,9 @@ static ssize_t system_debug_show(struct device *dev,
 	char p[6] = "set";
 
 	if (!subsys->desc->system_debug)
-		strlcpy(p, "reset", sizeof(p));
+		strscpy(p, "reset", sizeof(p));
 
-	return snprintf(buf, PAGE_SIZE, "%s\n", p);
+	return scnprintf(buf, PAGE_SIZE, "%s\n", p);
 }
 
 static ssize_t system_debug_store(struct device *dev,

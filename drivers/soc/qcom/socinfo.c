@@ -720,7 +720,7 @@ static char *msm_read_hardware_id(void)
 
 	ret = strlcat(msm_soc_str, cpu_of_id[socinfo->v0_1.id].soc_id_string,
 			sizeof(msm_soc_str));
-	if (ret > sizeof(msm_soc_str))
+	if (ret >= sizeof(msm_soc_str))
 		goto err_path;
 
 	string_generated = true;
@@ -743,7 +743,7 @@ const char * __init arch_read_machine_name(void)
 	name = of_get_flat_dt_prop(of_get_flat_dt_root(),
 				"qcom,msm-name", NULL);
 	if (name)
-		len += snprintf(msm_machine_name + len,
+		len += scnprintf(msm_machine_name + len,
 					sizeof(msm_machine_name) - len,
 					"%s", name);
 	else
@@ -752,10 +752,10 @@ const char * __init arch_read_machine_name(void)
 	name = of_get_flat_dt_prop(of_get_flat_dt_root(),
 				"qcom,pmic-name", NULL);
 	if (name) {
-		len += snprintf(msm_machine_name + len,
+		len += scnprintf(msm_machine_name + len,
 					sizeof(msm_machine_name) - len,
 					"%s", " ");
-		len += snprintf(msm_machine_name + len,
+		len += scnprintf(msm_machine_name + len,
 					sizeof(msm_machine_name) - len,
 					"%s", name);
 	} else
@@ -763,10 +763,10 @@ const char * __init arch_read_machine_name(void)
 
 	name = of_flat_dt_get_machine_name();
 	if (name) {
-		len += snprintf(msm_machine_name + len,
+		len += scnprintf(msm_machine_name + len,
 					sizeof(msm_machine_name) - len,
 					"%s", " ");
-		len += snprintf(msm_machine_name + len,
+		len += scnprintf(msm_machine_name + len,
 					sizeof(msm_machine_name) - len,
 					"%s", name);
 	} else
