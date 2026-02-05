@@ -232,7 +232,7 @@ struct dentry *msm_vidc_debugfs_init_core(struct msm_vidc_core *core,
 		goto failed_create_dir;
 	}
 
-	snprintf(debugfs_name, MAX_DEBUGFS_NAME, "core%d", core->id);
+	scnprintf(debugfs_name, MAX_DEBUGFS_NAME, "core%d", core->id);
 	dir = debugfs_create_dir(debugfs_name, parent);
 	if (!dir) {
 		dprintk(VIDC_ERR, "Failed to create debugfs for msm_vidc\n");
@@ -435,7 +435,7 @@ struct dentry *msm_vidc_debugfs_init_inst(struct msm_vidc_inst *inst,
 		dprintk(VIDC_ERR, "Invalid params, inst: %pK\n", inst);
 		goto exit;
 	}
-	snprintf(debugfs_name, MAX_DEBUGFS_NAME, "inst_%p", inst);
+	scnprintf(debugfs_name, MAX_DEBUGFS_NAME, "inst_%p", inst);
 
 	idata = kzalloc(sizeof(struct core_inst_pair), GFP_KERNEL);
 	if (!idata) {
