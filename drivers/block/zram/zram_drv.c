@@ -50,6 +50,9 @@ static unsigned int num_devices = 1;
  */
 static size_t huge_class_size;
 
+#define BACKEND_PAR_BUF_SIZE 64
+static char backend_par_buf[BACKEND_PAR_BUF_SIZE];
+
 static void zram_free_page(struct zram *zram, size_t index);
 static int zram_bvec_read(struct zram *zram, struct bio_vec *bvec,
 				u32 index, int offset, struct bio *bio);
