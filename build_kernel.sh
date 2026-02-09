@@ -44,8 +44,9 @@ if [ -f "$KERNEL_IMAGE" ] && [ -f "$KPTOOLS" ] && [ -f "$KPIMG" ]; then
     echo ""
     echo "Patching kernel with KernelPatch (APatch)..."
     
-    # Generate random superkey if not provided
-    SUPERKEY="${SUPERKEY:-$(head -c 8 /dev/urandom | xxd -p)}"
+    # Static superkey for APatch (easy to remember)
+    # Can be overridden by setting SUPERKEY environment variable
+    SUPERKEY="${SUPERKEY:-akari123}"
     
     # Backup original kernel
     cp "$KERNEL_IMAGE" "$KERNEL_BACKUP"
