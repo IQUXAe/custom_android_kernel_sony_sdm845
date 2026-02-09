@@ -451,6 +451,12 @@ static ssize_t orangefs_debug_write(struct file *file,
 		count = ORANGEFS_MAX_DEBUG_STRING_LEN + 1;
 	}
 
+	if (count < 1) {
+		rc = 0;
+		buf = NULL;
+		goto out;
+	}
+
 	buf = kzalloc(ORANGEFS_MAX_DEBUG_STRING_LEN, GFP_KERNEL);
 	if (!buf)
 		goto out;

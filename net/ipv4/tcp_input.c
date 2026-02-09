@@ -2268,7 +2268,7 @@ static void tcp_mark_head_lost(struct sock *sk, int packets, int mark_head)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct sk_buff *skb;
-	int cnt, oldcnt, lost;
+	int cnt, oldcnt, lost, hint_cnt;
 	unsigned int mss;
 	/* Use SACK to deduce losses of new sequences sent during recovery */
 	const u32 loss_high = tcp_is_sack(tp) ?  tp->snd_nxt : tp->high_seq;
@@ -2284,14 +2284,13 @@ static void tcp_mark_head_lost(struct sock *sk, int packets, int mark_head)
 		skb = tcp_write_queue_head(sk);
 		cnt = 0;
 	}
+	hint_cnt = cnt;
 
 	tcp_for_write_queue_from(skb, sk) {
+		hint_cnt = cnt;
+
 		if (skb == tcp_send_head(sk))
 			break;
-		/* TODO: do this better */
-		/* this is not the most efficient way to do this... */
-		tp->lost_skb_hint = skb;
-		tp->lost_cnt_hint = cnt;
 
 		if (after(TCP_SKB_CB(skb)->end_seq, loss_high))
 			break;
@@ -2321,6 +2320,10 @@ static void tcp_mark_head_lost(struct sock *sk, int packets, int mark_head)
 		if (mark_head)
 			break;
 	}
+
+	tp->lost_skb_hint = skb;
+	tp->lost_cnt_hint = hint_cnt;
+
 	tcp_verify_left_out(tp);
 }
 
