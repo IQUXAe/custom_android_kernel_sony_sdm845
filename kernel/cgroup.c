@@ -1759,7 +1759,7 @@ static int parse_cgroupfs_options(char *data, struct cgroup_sb_opts *opts)
 			if (!strlen(name))
 				return -EINVAL;
 			/* Must match [\w.-]+ */
-			for (i = 0; i < strlen(name); i++) {
+			for (i = 0; name[i]; i++) {
 				char c = name[i];
 				if (isalnum(c))
 					continue;

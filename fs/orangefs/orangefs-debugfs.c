@@ -560,7 +560,7 @@ static int orangefs_prepare_cdm_array(char *debug_array_string)
 	/*
 	 * figure out how many elements the cdm_array needs.
 	 */
-	for (i = 0; i < strlen(debug_array_string); i++)
+	for (i = 0; debug_array_string[i]; i++)
 		if (debug_array_string[i] == '\n')
 			cdm_element_count++;
 
