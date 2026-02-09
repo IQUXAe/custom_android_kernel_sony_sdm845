@@ -49,9 +49,10 @@ static int ntfs_collate_ntofs_ulong(ntfs_volume *vol,
 	u32 d1, d2;
 
 	ntfs_debug("Entering.");
-	// FIXME:  We don't really want to bug here.
-	BUG_ON(data1_len != data2_len);
-	BUG_ON(data1_len != 4);
+	if (data1_len != data2_len || data1_len != 4) {
+		ntfs_error(vol->sb, "Data length error: data1_len=%d, data2_len=%d", data1_len, data2_len);
+		return -EINVAL;
+	}
 	d1 = le32_to_cpup(data1);
 	d2 = le32_to_cpup(data2);
 	if (d1 < d2)
