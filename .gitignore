@@ -128,3 +128,4 @@ Android.bp
 
 temp_bluecross
 /out/
+kpatch/
