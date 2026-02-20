@@ -3945,7 +3945,7 @@ pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 	 * Avoid running the skip buddy, if running something else can
 	 * be done without getting too unfair.
 	 */
-	if (cfs_rq->skip == se) {
+	if (unlikely(cfs_rq->skip == se)) {
 		struct sched_entity *second;
 
 		if (se == curr) {
@@ -3966,13 +3966,13 @@ pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 	/*
 	 * Prefer last buddy, try to return the CPU to a preempted task.
 	 */
-	if (cfs_rq->last && wakeup_preempt_entity(cfs_rq->last, left) < 1)
+	if (unlikely(cfs_rq->last && wakeup_preempt_entity(cfs_rq->last, left) < 1))
 		se = cfs_rq->last;
 
 	/*
 	 * Someone really wants this to run. If it's not unfair, run it.
 	 */
-	if (cfs_rq->next && wakeup_preempt_entity(cfs_rq->next, left) < 1)
+	if (unlikely(cfs_rq->next && wakeup_preempt_entity(cfs_rq->next, left) < 1))
 		se = cfs_rq->next;
 
 	clear_buddies(cfs_rq, se);
@@ -5014,7 +5014,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	 * utilization updates, so do it here explicitly with the IOWAIT flag
 	 * passed.
 	 */
-	if (p->in_iowait)
+	if (unlikely(p->in_iowait))
 		cpufreq_update_this_cpu(rq, SCHED_CPUFREQ_IOWAIT);
 
 	for_each_sched_entity(se) {
@@ -5029,7 +5029,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		 * note: in the case of encountering a throttled cfs_rq we will
 		 * post the final h_nr_running increment below.
 		 */
-		if (cfs_rq_throttled(cfs_rq))
+		if (unlikely(cfs_rq_throttled(cfs_rq)))
 			break;
 		cfs_rq->h_nr_running++;
 		walt_inc_cfs_rq_stats(cfs_rq, p);
@@ -5042,7 +5042,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		cfs_rq->h_nr_running++;
 		walt_inc_cfs_rq_stats(cfs_rq, p);
 
-		if (cfs_rq_throttled(cfs_rq))
+		if (unlikely(cfs_rq_throttled(cfs_rq)))
 			break;
 
 		update_load_avg(se, UPDATE_TG);
@@ -5110,7 +5110,7 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		 * note: in the case of encountering a throttled cfs_rq we will
 		 * post the final h_nr_running decrement below.
 		*/
-		if (cfs_rq_throttled(cfs_rq))
+		if (unlikely(cfs_rq_throttled(cfs_rq)))
 			break;
 		cfs_rq->h_nr_running--;
 		walt_dec_cfs_rq_stats(cfs_rq, p);
@@ -5135,7 +5135,7 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		cfs_rq->h_nr_running--;
 		walt_dec_cfs_rq_stats(cfs_rq, p);
 
-		if (cfs_rq_throttled(cfs_rq))
+		if (unlikely(cfs_rq_throttled(cfs_rq)))
 			break;
 
 		update_load_avg(se, UPDATE_TG);
