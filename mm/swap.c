@@ -989,11 +989,8 @@ void __init swap_setup(void)
 		spin_lock_init(&swapper_spaces[i].tree_lock);
 #endif
 
-	/* Use a smaller cluster for small-memory machines */
-	if (megs < 16)
-		page_cluster = 2;
-	else
-		page_cluster = 3;
+	/* Use a page_cluster of 0 (1 page) by default for compressed swap (ZRAM) */
+	page_cluster = 0;
 	/*
 	 * Right now other parts of the system means that we
 	 * _really_ don't want to cluster much more
