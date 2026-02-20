@@ -4361,7 +4361,8 @@ static unsigned long _gpu_find_svm(struct kgsl_process_private *private,
 	uint64_t addr = kgsl_mmu_find_svm_region(private->pagetable,
 		(uint64_t) start, (uint64_t)end, (uint64_t) len, align);
 
-	BUG_ON(!IS_ERR_VALUE((unsigned long)addr) && (addr > ULONG_MAX));
+	if (WARN_ON_ONCE(!IS_ERR_VALUE((unsigned long)addr) && (addr > ULONG_MAX)))
+		return -ENOMEM;
 
 	return (unsigned long) addr;
 }
