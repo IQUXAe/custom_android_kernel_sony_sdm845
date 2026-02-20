@@ -5506,6 +5506,14 @@ static int ufshcd_slave_configure(struct scsi_device *sdev)
 	blk_queue_update_dma_pad(q, PRDT_DATA_BYTE_COUNT_PAD - 1);
 	blk_queue_max_segment_size(q, PRDT_DATA_BYTE_COUNT_MAX);
 
+	/*
+	 * PERFORMANCE OPTIMIZATION
+	 * Disable entropy contribution (QUEUE_FLAG_ADD_RANDOM) from UFS queue.
+	 * Modern Android devices feature efficient HW-RNG. This eliminates severe
+	 * spinlock contention in block IO hotpaths without breaking global PRNG.
+	 */
+	queue_flag_clear_unlocked(QUEUE_FLAG_ADD_RANDOM, q);
+
 	if (hba->scsi_cmd_timeout) {
 		blk_queue_rq_timeout(q, hba->scsi_cmd_timeout * HZ);
 		scsi_set_cmd_timeout_override(sdev, hba->scsi_cmd_timeout * HZ);

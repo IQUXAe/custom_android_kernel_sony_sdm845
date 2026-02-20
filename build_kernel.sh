@@ -12,7 +12,7 @@ export SUBARCH=arm64
 export DEFCONFIG=tama_akari_defconfig
 
 # Check if ld.lld exists to verify toolchain is present
-if ! command -v ld.lld &> /dev/null; then
+if [ ! -x "$(pwd)/bin/ld.lld" ]; then
     echo "Error: ld.lld (LLVM linker) not found in $(pwd)/bin. Please run antman to download the toolchain."
     exit 1
 fi
