@@ -1552,7 +1552,7 @@ enum Tfa98xx_Error dsp_msg(struct tfa_device *tfa, int length24,
 			int len;
 
 			/* (a) send the existing (full) message */
-			blob = kmalloc(64 * 1024, GFP_KERNEL); // max length is 64k
+			blob = kvmalloc(64 * 1024, GFP_KERNEL); // max length is 64k
 			len = tfa_tib_dsp_msgmulti(tfa, -1, (const char *)blob);
 			if (tfa->verbose) {
 				pr_debug("Multi-message buffer full. Sending multi-message,\
@@ -1564,7 +1564,7 @@ enum Tfa98xx_Error dsp_msg(struct tfa_device *tfa, int length24,
 			} else { /* via msg hal */
 				error = tfa98xx_write_dsp(tfa, len, (const char *)blob);
 			}
-			kfree(blob);
+			kvfree(blob);
 
 			/* (b) add the current DSP message to a new multi-message */
 			error = tfa_tib_dsp_msgmulti(tfa, length, buf);
@@ -1579,7 +1579,7 @@ enum Tfa98xx_Error dsp_msg(struct tfa_device *tfa, int length24,
 		if (lastmessage == 1) {
 
 			/* Get the full multi-msg data */
-			blob = kmalloc(64 * 1024, GFP_KERNEL); //max length is 64k
+			blob = kvmalloc(64 * 1024, GFP_KERNEL); //max length is 64k
 			length = tfa_tib_dsp_msgmulti(tfa, -1, (const char *)blob);
 
 			if (tfa->verbose)
@@ -1593,7 +1593,7 @@ enum Tfa98xx_Error dsp_msg(struct tfa_device *tfa, int length24,
 				error = tfa98xx_write_dsp(tfa, length, (const char *)blob);
 			}
 
-			kfree(blob); /* Free the kmalloc blob */
+			kvfree(blob); /* Free the kvmalloc blob */
 			lastmessage = 0; /* reset to be able to re-start */
 		}
 	} else {
