@@ -2265,7 +2265,8 @@ static int dispatcher_do_fault(struct adreno_device *adreno_dev)
 	atomic_set(&dispatcher->fault, 0);
 
 	/* If adreno_reset() fails then what hope do we have for the future? */
-	BUG_ON(ret);
+	if (WARN_ON_ONCE(ret))
+		return 0;
 
 	/* recover all the dispatch_q's starting with the one that hung */
 	if (dispatch_q)
