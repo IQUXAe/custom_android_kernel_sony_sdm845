@@ -93,8 +93,7 @@ static int get_dir_index_using_name(struct super_block *sb,
 	}
 
 	str = &index->name[SQUASHFS_NAME_LEN + 1];
-	strncpy(str, name, len);
-	str[len] = '\0';
+	strscpy(str, name, len + 1);
 
 	for (i = 0; i < i_count; i++) {
 		err = squashfs_read_metadata(sb, index, &index_start,
