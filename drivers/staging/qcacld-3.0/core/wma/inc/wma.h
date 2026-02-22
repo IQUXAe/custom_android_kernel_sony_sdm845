@@ -75,8 +75,13 @@
 #define WMA_INVALID_VDEV_ID                             0xFF
 
 /* Deprecated logging macros, to be removed. Please do not use in new code */
+#ifdef WLAN_LOG_DEBUG
 #define WMA_LOGD(args ...) \
 	QDF_TRACE(QDF_MODULE_ID_WMA, QDF_TRACE_LEVEL_DEBUG, ## args)
+#else
+#define WMA_LOGD(args ...) \
+	__qdf_trace_noop(QDF_MODULE_ID_WMA, ## args)
+#endif
 #define WMA_LOGI(args ...) \
 	QDF_TRACE(QDF_MODULE_ID_WMA, QDF_TRACE_LEVEL_INFO, ## args)
 #define WMA_LOGW(args ...) \

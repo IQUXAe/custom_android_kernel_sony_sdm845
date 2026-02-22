@@ -45,8 +45,13 @@
 		scm_logfl(QDF_TRACE_LEVEL_INFO, format, ## args)
 #define scm_info(format, args...) \
 		scm_logfl(QDF_TRACE_LEVEL_INFO_HIGH, format, ## args)
+#ifdef WLAN_LOG_DEBUG
 #define scm_debug(format, args...) \
 		scm_logfl(QDF_TRACE_LEVEL_DEBUG, format, ## args)
+#else
+#define scm_debug(format, args...) \
+		__qdf_trace_noop(QDF_MODULE_ID_SCAN, format, ## args)
+#endif
 /* Rate Limited Logs */
 #define scm_alert_rl(params...) \
 	QDF_TRACE_FATAL_RL(QDF_MODULE_ID_SCAN, params)
