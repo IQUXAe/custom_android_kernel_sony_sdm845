@@ -342,11 +342,11 @@ static ssize_t wakeup_enable_set(struct device *dev,
 
 	if (fpc1145->pm_wakeup) {
 		if (!strncmp(buf, "enable", strlen("enable"))) {
-			dev_info(fpc1145->dev, "%s enable\n", __func__);
+			dev_dbg(fpc1145->dev, "%s enable\n", __func__);
 			atomic_set(&fpc1145->wakeup_enabled, 1);
 			pm_relax(fpc1145->dev);
 		} else if (!strncmp(buf, "disable", strlen("disable"))) {
-			dev_info(fpc1145->dev, "%s disable\n", __func__);
+			dev_dbg(fpc1145->dev, "%s disable\n", __func__);
 			atomic_set(&fpc1145->wakeup_enabled, 0);
 		} else
 			return -EINVAL;
@@ -472,7 +472,7 @@ static irqreturn_t fpc1145_irq_handler(int irq, void *handle)
 
 	if (atomic_read(&fpc1145->wakeup_enabled)) {
 		pm_stay_awake(fpc1145->dev);
-		dev_info(fpc1145->dev, "%s: wakeup mode\n", __func__);
+		dev_dbg(fpc1145->dev, "%s: wakeup mode\n", __func__);
 	}
 
 	sysfs_notify(&fpc1145->dev->kobj, NULL, dev_attr_irq.attr.name);
@@ -631,32 +631,13 @@ MODULE_DEVICE_TABLE(of, fpc1145_of_match);
 static struct platform_driver fpc1145_driver = {
 	.driver = {
 		.name = "fpc1145",
-		.owner = THIS_MODULE,
 		.of_match_table = fpc1145_of_match,
 	},
 	.probe = fpc1145_probe,
 	.remove = fpc1145_remove,
 };
 
-static int __init fpc1145_init(void)
-{
-	int rc = platform_driver_register(&fpc1145_driver);
-
-	if (!rc)
-		pr_info("%s OK\n", __func__);
-	else
-		pr_err("%s %d\n", __func__, rc);
-	return rc;
-}
-
-static void __exit fpc1145_exit(void)
-{
-	pr_info("%s\n", __func__);
-	platform_driver_unregister(&fpc1145_driver);
-}
-
-module_init(fpc1145_init);
-module_exit(fpc1145_exit);
+module_platform_driver(fpc1145_driver);
 
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Aleksej Makarov <aleksej.makarov@sonymobile.com>");

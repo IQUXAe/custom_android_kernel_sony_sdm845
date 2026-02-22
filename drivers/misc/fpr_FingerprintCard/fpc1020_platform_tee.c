@@ -98,7 +98,7 @@ static int vreg_setup(struct fpc1020_data *fpc1020, const char *name,
 	for (i = 0; i < ARRAY_SIZE(vreg_conf); i++) {
 		const char *n = vreg_conf[i].name;
 
-		if (!memcmp(n, name, strlen(n)))
+		if (!strcmp(n, name))
 			goto found;
 	}
 
@@ -190,7 +190,7 @@ static int select_pin_ctl(struct fpc1020_data *fpc1020, const char *name)
 	for (i = 0; i < ARRAY_SIZE(pctl_names); i++) {
 		const char *n = pctl_names[i];
 
-		if (!memcmp(n, name, strlen(n))) {
+		if (!strcmp(n, name)) {
 			rc = pinctrl_select_state(fpc1020->fingerprint_pinctrl,
 					fpc1020->pinctrl_state[i]);
 			if (rc)
@@ -285,7 +285,7 @@ static ssize_t hw_reset_set(struct device *dev,
 	int rc = -EINVAL;
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 
-	if (!memcmp(buf, "reset", strlen("reset"))) {
+	if (sysfs_streq(buf, "reset")) {
 		mutex_lock(&fpc1020->lock);
 		rc = hw_reset(fpc1020);
 		mutex_unlock(&fpc1020->lock);
@@ -364,9 +364,9 @@ static ssize_t device_prepare_set(struct device *dev,
 	int rc;
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 
-	if (!memcmp(buf, "enable", strlen("enable")))
+	if (sysfs_streq(buf, "enable"))
 		rc = device_prepare(fpc1020, true);
-	else if (!memcmp(buf, "disable", strlen("disable")))
+	else if (sysfs_streq(buf, "disable"))
 		rc = device_prepare(fpc1020, false);
 	else
 		return -EINVAL;
@@ -386,9 +386,9 @@ static ssize_t wakeup_enable_set(struct device *dev,
 	ssize_t ret = count;
 
 	mutex_lock(&fpc1020->lock);
-	if (!memcmp(buf, "enable", strlen("enable")))
+	if (sysfs_streq(buf, "enable"))
 		atomic_set(&fpc1020->wakeup_enabled, 1);
-	else if (!memcmp(buf, "disable", strlen("disable")))
+	else if (sysfs_streq(buf, "disable"))
 		atomic_set(&fpc1020->wakeup_enabled, 0);
 	else
 		ret = -EINVAL;
@@ -462,7 +462,7 @@ static ssize_t irq_ack(struct device *dev,
 
 	return count;
 }
-static DEVICE_ATTR(irq, 0600 | 0200, irq_get, irq_ack);
+static DEVICE_ATTR(irq, 0600, irq_get, irq_ack);
 
 static struct attribute *attributes[] = {
 	&dev_attr_pinctl_set.attr,
@@ -484,7 +484,7 @@ static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 {
 	struct fpc1020_data *fpc1020 = handle;
 
-	pr_info("fpc1020 irq handler: %s\n", __func__);
+	dev_dbg(fpc1020->dev, "%s\n", __func__);
 	mutex_lock(&fpc1020->lock);
 	if (atomic_read(&fpc1020->wakeup_enabled)) {
 		fpc1020->nbr_irqs_received++;
@@ -650,34 +650,13 @@ MODULE_DEVICE_TABLE(of, fpc1020_of_match);
 static struct platform_driver fpc1020_driver = {
 	.driver = {
 		.name	= "fpc1020",
-		.owner	= THIS_MODULE,
 		.of_match_table = fpc1020_of_match,
 	},
 	.probe	= fpc1020_probe,
 	.remove	= fpc1020_remove,
 };
 
-static int __init fpc1020_init(void)
-{
-	int rc = platform_driver_register(&fpc1020_driver);
-
-	if (!rc)
-		pr_info("%s OK\n", __func__);
-	else
-		pr_err("%s %d\n", __func__, rc);
-
-	return rc;
-}
-
-static void __exit fpc1020_exit(void)
-{
-	pr_info("%s\n", __func__);
-	platform_driver_unregister(&fpc1020_driver);
-}
-
-module_init(fpc1020_init);
-module_exit(fpc1020_exit);
-
+module_platform_driver(fpc1020_driver);
 
 MODULE_DESCRIPTION("FPC1020 Fingerprint sensor device driver.");
 MODULE_LICENSE("GPL v2");
