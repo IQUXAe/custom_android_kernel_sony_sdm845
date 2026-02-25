@@ -9434,8 +9434,10 @@ hdd_display_netif_queue_history_compact(struct hdd_context *hdd_ctx)
 	}
 
 	/* using QDF_TRACE to avoid printing function name */
+#ifdef CONFIG_WLAN_DEBUG_SPAM
 	QDF_TRACE(QDF_MODULE_ID_HDD, QDF_TRACE_LEVEL_INFO_LOW,
 		  "STATS |%s", comb_log_str);
+#endif
 
 	if (bytes_written >= comb_log_str_size)
 		hdd_warn("log string truncated");

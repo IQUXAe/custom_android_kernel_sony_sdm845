@@ -17,4 +17,12 @@ config QCA_CLD_WLAN_PROFILE
 
 	  Profiles are located at drivers/staging/qcacld-3.0/configs.
 
+config WLAN_DEBUG_SPAM
+	bool "Enable noisy WLAN debug logs (WoW, stats, hex dumps)"
+	default y
+	help
+	  Enable verbose logging from the Wi-Fi driver, including
+	  Wake-on-WLAN packet hex dumps, wake reason counters, and
+	  frequent STATS dumps. Disable to reduce dmesg spam.
+
 endif # QCA_CLD_WLAN

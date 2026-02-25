@@ -119,8 +119,10 @@ htt_get_first_packet_after_wow_wakeup(uint32_t *msg_word, qdf_nbuf_t buf)
 	if (HTT_RX_IN_ORD_PADDR_IND_MSDU_INFO_GET(*msg_word) &
 			FW_MSDU_INFO_FIRST_WAKEUP_M) {
 		qdf_nbuf_mark_wakeup_frame(buf);
+#ifdef CONFIG_WLAN_DEBUG_SPAM
 		QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_INFO,
 			  "%s: First packet after WOW Wakeup rcvd", __func__);
+#endif
 	}
 }
 

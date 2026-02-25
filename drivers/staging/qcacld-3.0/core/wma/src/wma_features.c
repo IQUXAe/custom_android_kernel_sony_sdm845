@@ -1823,6 +1823,7 @@ static void wma_inc_wow_stats(t_wma_handle *wma,
 					     wake_info->wake_reason);
 }
 
+#ifdef CONFIG_WLAN_DEBUG_SPAM
 static void wma_wow_stats_display(struct wake_lock_stats *stats)
 {
 	WMA_LOGA("WLAN wake reason counters:");
@@ -1859,6 +1860,7 @@ static void wma_wow_stats_display(struct wake_lock_stats *stats)
 		 stats->oem_response_wake_up_count,
 		 stats->scan_11d);
 }
+#endif
 
 static void wma_print_wow_stats(t_wma_handle *wma,
 				WOW_EVENT_INFO_fixed_param *wake_info)
@@ -1880,7 +1882,9 @@ static void wma_print_wow_stats(t_wma_handle *wma,
 
 	ucfg_mc_cp_stats_get_vdev_wake_lock_stats(vdev, &stats);
 	wlan_objmgr_vdev_release_ref(vdev, WLAN_LEGACY_WMA_ID);
+#ifdef CONFIG_WLAN_DEBUG_SPAM
 	wma_wow_stats_display(&stats);
+#endif
 }
 #else
 /**
@@ -1889,6 +1893,7 @@ static void wma_print_wow_stats(t_wma_handle *wma,
  *
  * Return: none
  */
+#ifdef CONFIG_WLAN_DEBUG_SPAM
 static void wma_wow_stats_display(struct sir_vdev_wow_stats *stats)
 {
 	WMA_LOGA("uc %d bc %d v4_mc %d v6_mc %d ra %d ns %d na %d pno_match %d pno_complete %d gscan %d low_rssi %d rssi_breach %d icmp %d icmpv6 %d oem %d",
@@ -1908,6 +1913,7 @@ static void wma_wow_stats_display(struct sir_vdev_wow_stats *stats)
 		stats->icmpv6,
 		stats->oem_response);
 }
+#endif
 
 static void wma_print_wow_stats(t_wma_handle *wma,
 				WOW_EVENT_INFO_fixed_param *wake_info)
@@ -1933,7 +1939,9 @@ static void wma_print_wow_stats(t_wma_handle *wma,
 	}
 
 	stats = &wma->interfaces[wake_info->vdev_id].wow_stats;
+#ifdef CONFIG_WLAN_DEBUG_SPAM
 	wma_wow_stats_display(stats);
+#endif
 }
 
 /**
@@ -2788,6 +2796,7 @@ wma_wake_reason_ap_assoc_lost(t_wma_handle *wma, void *event, uint32_t len)
 }
 
 #ifdef WLAN_DEBUG
+#ifdef CONFIG_WLAN_DEBUG_SPAM
 static const char *wma_vdev_type_str(uint32_t vdev_type)
 {
 	switch (vdev_type) {
@@ -2809,6 +2818,7 @@ static const char *wma_vdev_type_str(uint32_t vdev_type)
 		return "unknown";
 	}
 }
+#endif
 #endif
 
 static int wma_wake_event_packet(
@@ -2864,8 +2874,10 @@ static int wma_wake_event_packet(
 	case WOW_REASON_RECV_MAGIC_PATTERN:
 	case WOW_REASON_PACKET_FILTER_MATCH:
 		WMA_LOGD("Wake event packet:");
+#ifdef CONFIG_WLAN_DEBUG_SPAM
 		qdf_trace_hex_dump(QDF_MODULE_ID_WMA, QDF_TRACE_LEVEL_DEBUG,
 				   packet, packet_len);
+#endif
 
 		vdev = &wma->interfaces[wake_info->vdev_id];
 		wma_wow_parse_data_pkt(wma, wake_info->vdev_id,
@@ -2951,8 +2963,10 @@ static int wma_wake_event_piggybacked(
 		pb_event_buf = event_param->wow_packet_buffer + 4;
 
 		WMA_LOGD("piggybacked event buffer:");
+#ifdef CONFIG_WLAN_DEBUG_SPAM
 		qdf_trace_hex_dump(QDF_MODULE_ID_WMA, QDF_TRACE_LEVEL_DEBUG,
 				   pb_event_buf, pb_event_len);
+#endif
 
 		tag = WMITLV_GET_TLVTAG(WMITLV_GET_HDR(pb_event_buf));
 		event_id = wow_get_wmi_eventid(wake_reason, tag);
@@ -3094,15 +3108,19 @@ static void wma_wake_event_log_reason(t_wma_handle *wma,
 	/* "Unspecified" means APPS triggered wake, else firmware triggered */
 	if (wake_info->wake_reason != WOW_REASON_UNSPECIFIED) {
 		vdev = &wma->interfaces[wake_info->vdev_id];
+#ifdef CONFIG_WLAN_DEBUG_SPAM
 		WMA_LOGA("WLAN triggered wakeup: %s (%d), vdev: %d (%s)",
 			 wma_wow_wake_reason_str(wake_info->wake_reason),
 			 wake_info->wake_reason,
 			 wake_info->vdev_id,
 			 wma_vdev_type_str(vdev->type));
+#endif
 	} else if (!wmi_get_runtime_pm_inprogress(wma->wmi_handle)) {
+#ifdef CONFIG_WLAN_DEBUG_SPAM
 		WMA_LOGA("Non-WLAN triggered wakeup: %s (%d)",
 			 wma_wow_wake_reason_str(wake_info->wake_reason),
 			 wake_info->wake_reason);
+#endif
 	}
 
 	qdf_wow_wakeup_host_event(wake_info->wake_reason);
