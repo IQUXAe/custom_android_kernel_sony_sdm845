@@ -5126,6 +5126,7 @@ void ol_txrx_stats_display(ol_txrx_pdev_handle pdev,
 #endif
 
 	if (level == QDF_STATS_VERBOSITY_LEVEL_LOW) {
+#ifdef CONFIG_WLAN_DEBUG_SPAM
 		QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_INFO_LOW,
 			  "STATS |%u %u|TX: %lld tso %lld ok %lld drops(%u-%lld %u-%lld %u-%lld ?-%lld hR-%lld)|RX: %lld drops(E %lld PI %lld ME %lld) fwd(S %d F %d SF %d)|",
 			  pdev->tx_desc.num_free,
@@ -5148,6 +5149,7 @@ void ol_txrx_stats_display(ol_txrx_pdev_handle pdev,
 			  pdev->stats.pub.rx.intra_bss_fwd.packets_stack,
 			  pdev->stats.pub.rx.intra_bss_fwd.packets_fwd,
 			  pdev->stats.pub.rx.intra_bss_fwd.packets_stack_n_fwd);
+#endif
 		return;
 	}
 
