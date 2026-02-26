@@ -17,15 +17,28 @@ extern unsigned long _find_next_bit(const unsigned long *addr,
 extern unsigned long find_next_bit(const unsigned long *addr, unsigned long
 		size, unsigned long offset);
 
-#define find_next_bit(addr, size, offset) \
-	((__builtin_constant_p((size)) && (size) <= BITS_PER_LONG) ? \
-		(((offset) >= (size)) ? (size) : \
-			((*(const unsigned long *)(addr) & (~0UL << (offset))) ? \
-				((unsigned long)__ffs(*(const unsigned long *)(addr) & (~0UL << (offset))) < (unsigned long)(size) ? \
-				 (unsigned long)__ffs(*(const unsigned long *)(addr) & (~0UL << (offset))) : \
-				 (unsigned long)(size)) : \
-				(unsigned long)(size))) : \
-		_find_next_bit((addr), (size), (offset), 0UL))
+static inline unsigned long __inline_find_next_bit(const unsigned long *addr,
+						   unsigned long size,
+						   unsigned long offset)
+{
+	if (__builtin_constant_p(size) && size <= BITS_PER_LONG) {
+		unsigned long val;
+
+		if (unlikely(offset >= size))
+			return size;
+
+		val = *(const unsigned long *)addr & (~0UL << offset);
+		if (val) {
+			unsigned long res = __ffs(val);
+			return res < size ? res : size;
+		}
+		return size;
+	}
+
+	return _find_next_bit(addr, size, offset, 0UL);
+}
+
+#define find_next_bit(addr, size, offset) __inline_find_next_bit((const unsigned long *)(addr), (size), (offset))
 
 #endif
 
@@ -42,15 +55,28 @@ extern unsigned long find_next_bit(const unsigned long *addr, unsigned long
 extern unsigned long find_next_zero_bit(const unsigned long *addr, unsigned
 		long size, unsigned long offset);
 
-#define find_next_zero_bit(addr, size, offset) \
-	((__builtin_constant_p((size)) && (size) <= BITS_PER_LONG) ? \
-		(((offset) >= (size)) ? (size) : \
-			((~(*(const unsigned long *)(addr)) & (~0UL << (offset))) ? \
-				((unsigned long)__ffs(~(*(const unsigned long *)(addr)) & (~0UL << (offset))) < (unsigned long)(size) ? \
-				 (unsigned long)__ffs(~(*(const unsigned long *)(addr)) & (~0UL << (offset))) : \
-				 (unsigned long)(size)) : \
-				(unsigned long)(size))) : \
-		_find_next_bit((addr), (size), (offset), ~0UL))
+static inline unsigned long __inline_find_next_zero_bit(const unsigned long *addr,
+							unsigned long size,
+							unsigned long offset)
+{
+	if (__builtin_constant_p(size) && size <= BITS_PER_LONG) {
+		unsigned long val;
+
+		if (unlikely(offset >= size))
+			return size;
+
+		val = ~(*(const unsigned long *)addr) & (~0UL << offset);
+		if (val) {
+			unsigned long res = __ffs(val);
+			return res < size ? res : size;
+		}
+		return size;
+	}
+
+	return _find_next_bit(addr, size, offset, ~0UL);
+}
+
+#define find_next_zero_bit(addr, size, offset) __inline_find_next_zero_bit((const unsigned long *)(addr), (size), (offset))
 
 #endif
 

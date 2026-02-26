@@ -1838,7 +1838,13 @@ shrink_inactive_list(unsigned long nr_to_scan, struct lruvec *lruvec,
 		return 0;
 
 	while (unlikely(too_many_isolated(pgdat, file, sc, safe))) {
-		congestion_wait(BLK_RW_ASYNC, HZ/10);
+		/*
+		 * HZ/10 is about 100ms, which is a very aggressive timeout and
+		 * causes visible UI freezes (janks) during heavy memory pressure.
+		 * Reduce this to HZ/50 (20ms) to give I/O some time without
+		 * stalling the entire direct reclaimer thread for too long.
+		 */
+		congestion_wait(BLK_RW_ASYNC, HZ/50);
 
 		/* We are about to die and free our memory. Return now. */
 		if (fatal_signal_pending(current))
@@ -1958,7 +1964,7 @@ shrink_inactive_list(unsigned long nr_to_scan, struct lruvec *lruvec,
 	 */
 	if (!sc->hibernation_mode && !current_is_kswapd() &&
 	    current_may_throttle())
-		wait_iff_congested(pgdat, BLK_RW_ASYNC, HZ/10);
+		wait_iff_congested(pgdat, BLK_RW_ASYNC, HZ/50);
 
 	trace_mm_vmscan_lru_shrink_inactive(pgdat->node_id,
 			nr_scanned, nr_reclaimed,

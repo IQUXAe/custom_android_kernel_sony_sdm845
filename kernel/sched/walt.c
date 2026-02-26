@@ -2056,8 +2056,7 @@ void init_new_task_load(struct task_struct *p)
 	else
 		init_load_pct = sysctl_sched_init_task_load_pct;
 
-	init_load_windows = div64_u64((u64)init_load_pct *
-				(u64)sched_ravg_window, 100);
+	init_load_windows = ((u64)init_load_pct * (u64)sched_ravg_window) / 100;
 
 	p->ravg.demand = init_load_windows;
 	p->ravg.coloc_demand = init_load_windows;
