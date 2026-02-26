@@ -3227,9 +3227,11 @@ void qdf_trace_msg_cmn(unsigned int idx,
 #if defined(WLAN_LOGGING_SOCK_SVC_ENABLE)
 		wlan_log_to_user(verbose, (char *)str_buffer,
 				 strlen(str_buffer));
-		print_to_console(str_buffer);
+		if (verbose <= QDF_TRACE_LEVEL_INFO || IS_ENABLED(CONFIG_WLAN_DEBUG_SPAM))
+			print_to_console(str_buffer);
 #else
-		pr_err("%s\n", str_buffer);
+		if (verbose <= QDF_TRACE_LEVEL_INFO || IS_ENABLED(CONFIG_WLAN_DEBUG_SPAM))
+			pr_err("%s\n", str_buffer);
 #endif
 	}
 }
