@@ -574,10 +574,10 @@ static int fpc1145_probe(struct platform_device *pdev)
 	if (rc)
 		goto exit;
 
-	irqf = IRQF_TRIGGER_RISING | IRQF_ONESHOT;
+	irqf = IRQF_TRIGGER_RISING;
 	mutex_init(&fpc1145->lock);
-	rc = devm_request_threaded_irq(dev, gpio_to_irq(fpc1145->irq_gpio),
-			NULL, fpc1145_irq_handler, irqf,
+	rc = devm_request_irq(dev, gpio_to_irq(fpc1145->irq_gpio),
+			fpc1145_irq_handler, irqf,
 			dev_name(dev), fpc1145);
 	if (rc) {
 		dev_err(dev, "could not request irq %d\n",
