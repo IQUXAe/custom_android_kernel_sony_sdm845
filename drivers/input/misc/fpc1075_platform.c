@@ -73,7 +73,8 @@ struct fpc1145_data {
 	bool vdd_ana;
 };
 
-static irqreturn_t fpc1145_irq_handler(int irq, void *handle);
+static irqreturn_t fpc1145_irq_handler_top(int irq, void *handle);
+static irqreturn_t fpc1145_irq_handler_thread(int irq, void *handle);
 
 static int vreg_setup(struct fpc1145_data *fpc1145, const char *name,
 	bool enable)
@@ -466,7 +467,7 @@ static const struct attribute_group attribute_group = {
 	.attrs = attributes,
 };
 
-static irqreturn_t fpc1145_irq_handler(int irq, void *handle)
+static irqreturn_t fpc1145_irq_handler_top(int irq, void *handle)
 {
 	struct fpc1145_data *fpc1145 = handle;
 
@@ -474,6 +475,13 @@ static irqreturn_t fpc1145_irq_handler(int irq, void *handle)
 		pm_stay_awake(fpc1145->dev);
 		dev_dbg(fpc1145->dev, "%s: wakeup mode\n", __func__);
 	}
+
+	return IRQ_WAKE_THREAD;
+}
+
+static irqreturn_t fpc1145_irq_handler_thread(int irq, void *handle)
+{
+	struct fpc1145_data *fpc1145 = handle;
 
 	sysfs_notify(&fpc1145->dev->kobj, NULL, dev_attr_irq.attr.name);
 
@@ -574,10 +582,10 @@ static int fpc1145_probe(struct platform_device *pdev)
 	if (rc)
 		goto exit;
 
-	irqf = IRQF_TRIGGER_RISING;
+	irqf = IRQF_TRIGGER_RISING | IRQF_ONESHOT;
 	mutex_init(&fpc1145->lock);
-	rc = devm_request_irq(dev, gpio_to_irq(fpc1145->irq_gpio),
-			fpc1145_irq_handler, irqf,
+	rc = devm_request_threaded_irq(dev, gpio_to_irq(fpc1145->irq_gpio),
+			fpc1145_irq_handler_top, fpc1145_irq_handler_thread, irqf,
 			dev_name(dev), fpc1145);
 	if (rc) {
 		dev_err(dev, "could not request irq %d\n",
