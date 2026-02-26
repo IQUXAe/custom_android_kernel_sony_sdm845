@@ -115,15 +115,24 @@ struct pn544_dev    {
     u8                  *tx_kbuf; /*buffer for write */
     size_t              rx_kbuf_len;
     u8                  *rx_kbuf; /*buffer for read */
+
+    wait_queue_head_t   event_wq;
+    struct list_head    event_list;
+    spinlock_t          event_lock;
+};
+
+struct pn544_event {
+    struct list_head list;
+    p61_access_state_t state;
 };
 
 static struct pn544_dev *pn544_dev;
-static struct semaphore ese_access_sema;
-static struct semaphore svdd_sync_onoff_sema;
-/*semaphore to wait till JNI operation is completed for SPI on/off*/
-static struct completion dwp_onoff_sema;
-/* semaphore to lock SPI open request until signal handling is complete */
-static struct semaphore dwp_onoff_release_sema;
+static DEFINE_MUTEX(ese_access_mutex);
+static DECLARE_COMPLETION(svdd_sync_onoff_comp);
+/*completion to wait till JNI operation is completed for SPI on/off*/
+static DECLARE_COMPLETION(dwp_onoff_comp);
+/* completion to lock SPI open request until signal handling is complete */
+static DECLARE_COMPLETION(dwp_onoff_release_comp);
 static struct timer_list secure_timer;
 static void release_ese_lock(p61_access_state_t  p61_current_state);
 int get_ese_lock(p61_access_state_t  p61_current_state, int timeout);
@@ -308,68 +317,51 @@ static void p61_get_access_state(struct pn544_dev *pn544_dev, p61_access_state_t
 
 static int signal_handler(p61_access_state_t state, long nfc_pid)
 {
-    struct siginfo sinfo;
-    pid_t pid;
-    struct task_struct *task;
-    int sigret = 0, ret = 0;
-    //pr_info("%s: Enter\n", __func__);
-
-    if(nfc_pid == 0)
-    {
-        pr_info("nfc_pid is clear don't call signal_handler.\n");
+    struct pn544_event *ev;
+    
+    if (nfc_pid == 0) {
+        pr_info("nfc_pid is clear don't queue event.\n");
+        return 0;
     }
-    else
-    {
-        memset(&sinfo, 0, sizeof(struct siginfo));
-        sinfo.si_signo = SIG_NFC;
-        sinfo.si_code = SI_QUEUE;
-        sinfo.si_int = state;
-        pid = nfc_pid;
 
-        task = pid_task(find_vpid(pid), PIDTYPE_PID);
-        if(task)
-        {
-            pr_info("%s.\n", task->comm);
-            sigret = send_sig_info(SIG_NFC, &sinfo, task);
-            if(sigret < 0){
-                pr_info("send_sig_info failed..... sigret %d.\n", sigret);
-                ret = -1;
-                //msleep(60);
-            }
-        }
-        else{
-             pr_info("finding task from PID failed\r\n");
-             ret = -1;
-        }
+    ev = kzalloc(sizeof(*ev), GFP_ATOMIC);
+    if (!ev) {
+        pr_err("%s: Failed to allocate event\n", __func__);
+        return -ENOMEM;
     }
-    pr_info("%s: Exit ret = %d\n", __func__, ret);
-    return ret;
+
+    ev->state = state;
+    
+    spin_lock(&pn544_dev->event_lock);
+    list_add_tail(&ev->list, &pn544_dev->event_list);
+    spin_unlock(&pn544_dev->event_lock);
+    
+    wake_up_interruptible(&pn544_dev->event_wq);
+    pr_info("%s: Queued event %d\n", __func__, state);
+    
+    return 0;
 }
 static STATUS svdd_sync_onoff(long nfc_service_pid, p61_access_state_t origin)
 {
     int timeout = 4500; // 4500 ms timeout
     unsigned long tempJ = msecs_to_jiffies(timeout);
-    //pr_info("%s: Enter nfc_service_pid: %ld\n", __func__, nfc_service_pid);
-    sema_init(&svdd_sync_onoff_sema, 0);
+    
+    reinit_completion(&svdd_sync_onoff_comp);
     if (nfc_service_pid) {
         if (0 == signal_handler(origin, nfc_service_pid)) {
             pr_info("Waiting for svdd protection response");
-            if (down_timeout(&svdd_sync_onoff_sema, tempJ) != 0) {
+            if (wait_for_completion_interruptible_timeout(&svdd_sync_onoff_comp, tempJ) == 0) {
                 pr_info("svdd wait protection: Timeout");
                 return STATUS_FAILED;
             }
-            msleep(10);
-            //pr_info("svdd wait protection : released");
+            usleep_range(10000, 11000);
         }
     }
     return (pn544_dev->dwpLinkUpdateStat == 0x00) ? STATUS_SUCCESS : STATUS_FAILED;
-    //pr_info("%s: Exit\n", __func__);
 }
 static int release_svdd_wait(void)
 {
-    //pr_info("%s: Enter \n", __func__);
-    up(&svdd_sync_onoff_sema);
-    //pr_info("%s: Exit\n", __func__);
+    complete(&svdd_sync_onoff_comp);
     return 0;
 }
 
@@ -377,14 +369,14 @@ static STATUS dwp_OnOff(long nfc_service_pid, p61_access_state_t origin)
 {
     int timeout = 4500; // 4500 ms timeout
     unsigned long tempJ = msecs_to_jiffies(timeout);
-    init_completion(&dwp_onoff_sema);
+    
+    reinit_completion(&dwp_onoff_comp);
     if (nfc_service_pid) {
         if (0 == signal_handler(origin, nfc_service_pid)) {
-            if (wait_for_completion_timeout(&dwp_onoff_sema, tempJ) == 0) {
+            if (wait_for_completion_interruptible_timeout(&dwp_onoff_comp, tempJ) == 0) {
                 pr_info("Dwp On/off wait protection: Timeout");
                 return STATUS_FAILED;
             }
-            //pr_info("Dwp On/Off wait protection : released");
         }
     }
     return (pn544_dev->dwpLinkUpdateStat == 0x00) ? STATUS_SUCCESS : STATUS_FAILED;
@@ -394,16 +386,15 @@ static int release_dwpOnOff_wait(void)
     int timeout = 500; // 500 ms timeout
     unsigned long tempJ = msecs_to_jiffies(timeout);
     pr_info("%s: Enter \n", __func__);
-    complete(&dwp_onoff_sema);
-    {
-        sema_init(&dwp_onoff_release_sema, 0);
-        /*release JNI only after all the SPI On related actions are completed*/
-        if (down_timeout(&dwp_onoff_release_sema, tempJ) != 0) {
+    
+    complete(&dwp_onoff_comp);
+    
+    reinit_completion(&dwp_onoff_release_comp);
+    /*release JNI only after all the SPI On related actions are completed*/
+    if (wait_for_completion_interruptible_timeout(&dwp_onoff_release_comp, tempJ) == 0) {
         //pr_info("Dwp On/off release wait protection: Timeout");
-        }
-    //pr_info("Dwp On/Off release wait protection : released");
     }
-  return 0;
+    return 0;
 }
 
 static int pn544_dev_open(struct inode *inode, struct file *filp)
@@ -447,6 +438,33 @@ long  pn544_dev_ioctl(struct file *filp, unsigned int cmd,
         case P544_REL_DWPONOFF_WAIT:
            pn544_dev->dwpLinkUpdateStat = arg;
             return release_dwpOnOff_wait();
+        break;
+        case PN544_WAIT_EVENT:
+        {
+            struct pn544_event *ev;
+            p61_access_state_t state;
+            int ret;
+
+            ret = wait_event_interruptible(pn544_dev->event_wq, !list_empty(&pn544_dev->event_list));
+            if (ret)
+                return ret;
+
+            spin_lock(&pn544_dev->event_lock);
+            ev = list_first_entry_or_null(&pn544_dev->event_list, struct pn544_event, list);
+            if (ev) {
+                list_del(&ev->list);
+                state = ev->state;
+                kfree(ev);
+            } else {
+                state = P61_STATE_INVALID;
+            }
+            spin_unlock(&pn544_dev->event_lock);
+
+            if (state == P61_STATE_INVALID)
+                return -EAGAIN;
+
+            return put_user((unsigned int)state, (unsigned int __user *)arg);
+        }
         break;
         default:
         break;
@@ -601,7 +619,7 @@ long  pn544_dev_ioctl(struct file *filp, unsigned int cmd,
                 }
                 p61_update_access_state(pn544_dev, P61_STATE_SPI, true);
                 if (pn544_dev->nfc_service_pid) {
-                  up(&dwp_onoff_release_sema);
+                  complete(&dwp_onoff_release_comp);
                 }
 
             } else if ((current_state & (P61_STATE_SPI|P61_STATE_SPI_PRIO))
@@ -1159,21 +1177,19 @@ static long set_jcop_download_state(unsigned long arg)
     return ret;
 }
 
-int get_ese_lock(p61_access_state_t  p61_current_state, int timeout)
+int get_ese_lock(p61_access_state_t p61_current_state, int timeout)
 {
-    unsigned long tempJ = msecs_to_jiffies(timeout);
-    if(down_timeout(&ese_access_sema, tempJ) != 0)
-    {
-        printk("get_ese_lock: timeout p61_current_state = %d\n", p61_current_state);
+    if (mutex_lock_interruptible(&ese_access_mutex)) {
+        printk("get_ese_lock: interrupted p61_current_state = %d\n", p61_current_state);
         return -EBUSY;
     }
     return 0;
 }
 EXPORT_SYMBOL(get_ese_lock);
 
-static void release_ese_lock(p61_access_state_t  p61_current_state)
+static void release_ese_lock(p61_access_state_t p61_current_state)
 {
-    up(&ese_access_sema);
+    mutex_unlock(&ese_access_mutex);
 }
 
 
@@ -1354,9 +1370,10 @@ static int pn544_probe(struct i2c_client *client,
 #endif
     /* init mutex and queues */
     init_waitqueue_head(&pn544_dev->read_wq);
+    init_waitqueue_head(&pn544_dev->event_wq);
+    INIT_LIST_HEAD(&pn544_dev->event_list);
+    spin_lock_init(&pn544_dev->event_lock);
     mutex_init(&pn544_dev->read_mutex);
-    sema_init(&ese_access_sema, 1);
-    sema_init(&dwp_onoff_release_sema, 0);
     spin_lock_init(&pn544_dev->irq_enabled_lock);
     pn544_dev->pSecureTimerCbWq = create_workqueue(SECURE_TIMER_WORK_QUEUE);
     INIT_WORK(&pn544_dev->wq_task, secure_timer_workqueue);
