@@ -2849,6 +2849,8 @@ static unsigned long do_try_to_free_pages(struct zonelist *zonelist,
 					  struct scan_control *sc)
 {
 	int initial_priority = sc->priority;
+	u64 start_time = ktime_get_ns();
+	bool reclaim_timeout = false;
 retry:
 	delayacct_freepages_start();
 
@@ -2873,12 +2875,27 @@ retry:
 		 */
 		if (sc->priority < DEF_PRIORITY - 2)
 			sc->may_writepage = 1;
+
+		/* 
+		 * ANDROID: "Imitate PSI" -> limit Direct Reclaim stall 
+		 * If a user app spins for >15ms trying to free RAM,
+		 * abort direct reclaim to prevent UI stutter (stuttering cursor, laggy switch).
+		 */
+		if (!current_is_kswapd() && (ktime_get_ns() - start_time > 15000000ULL)) {
+			reclaim_timeout = true;
+			/* Force the system to recognize critical memory pressure */
+			vmpressure_prio(sc->gfp_mask, sc->target_mem_cgroup, 0); 
+			break;
+		}
 	} while (--sc->priority >= 0);
 
 	delayacct_freepages_end();
 
 	if (sc->nr_reclaimed)
 		return sc->nr_reclaimed;
+
+	if (reclaim_timeout)
+		return 1; /* Fake progress to avoid immediate OOM, let kswapd/LMK work */
 
 	/* Aborted reclaim to try compaction? don't OOM, then */
 	if (sc->compaction_ready)
