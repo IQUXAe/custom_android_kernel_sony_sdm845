@@ -328,8 +328,10 @@ update_window_start(struct rq *rq, u64 wallclock, int event)
 	if (delta < sched_ravg_window)
 		return old_window_start;
 
-	nr_windows = div64_u64(delta, sched_ravg_window);
-	rq->window_start += (u64)nr_windows * (u64)sched_ravg_window;
+	while (delta >= sched_ravg_window) {
+		delta -= sched_ravg_window;
+		rq->window_start += sched_ravg_window;
+	}
 
 	rq->cum_window_demand = rq->walt_stats.cumulative_runnable_avg;
 
@@ -1881,8 +1883,12 @@ static u64 update_task_demand(struct task_struct *p, struct rq *rq,
 	 * window_start to first window boundary after mark_start.
 	 */
 	delta = window_start - mark_start;
-	nr_full_windows = div64_u64(delta, window_size);
-	window_start -= (u64)nr_full_windows * (u64)window_size;
+	nr_full_windows = 0;
+	while (delta >= window_size) {
+		delta -= window_size;
+		window_start -= window_size;
+		nr_full_windows++;
+	}
 
 	/* Process (window_start - mark_start) first */
 	runtime = add_to_task_demand(rq, p, window_start - mark_start);
