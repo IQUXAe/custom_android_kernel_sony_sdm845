@@ -103,6 +103,10 @@
 
 #define P544_SECURE_TIMER_SESSION _IOW(PN544_MAGIC, 0x0B, int)
 
+/*
+  NFC will call the ioctl to wait for an event from the driver instead of using signals
+*/
+#define PN544_WAIT_EVENT _IOR(PN544_MAGIC, 0x0C, int)
 #define MAX_ESE_ACCESS_TIME_OUT_MS 200 /*100 milliseconds*/
 
 typedef enum p61_access_state{
