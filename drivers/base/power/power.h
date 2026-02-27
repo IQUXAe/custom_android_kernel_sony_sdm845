@@ -21,6 +21,10 @@ extern void pm_runtime_init(struct device *dev);
 extern void pm_runtime_reinit(struct device *dev);
 extern void pm_runtime_remove(struct device *dev);
 
+#ifdef CONFIG_BOEFFLA_WL_BLOCKER
+extern bool boeffla_wl_is_blocked(const char *name);
+#endif
+
 #define WAKE_IRQ_DEDICATED_ALLOCATED	BIT(0)
 #define WAKE_IRQ_DEDICATED_MANAGED	BIT(1)
 #define WAKE_IRQ_DEDICATED_MASK		(WAKE_IRQ_DEDICATED_ALLOCATED | \
