@@ -532,11 +532,6 @@ static void wakeup_source_activate(struct wakeup_source *ws)
 {
 	unsigned int cec;
 
-#ifdef CONFIG_BOEFFLA_WL_BLOCKER
-	if (boeffla_wl_is_blocked(ws->name))
-		return;
-#endif
-
 	if (WARN_ONCE(wakeup_source_not_registered(ws),
 			"unregistered wakeup source\n"))
 		return;
