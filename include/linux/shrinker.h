@@ -25,6 +25,17 @@ struct shrink_control {
 	struct mem_cgroup *memcg;
 };
 
+struct shrinker;
+
+/*
+ * Keep the callback signatures in named typedefs: newer Clang versions have
+ * been seen to crash on the anonymous in-struct form used here historically.
+ */
+typedef unsigned long (*shrinker_count_fn)(struct shrinker *shrinker,
+					   struct shrink_control *sc);
+typedef unsigned long (*shrinker_scan_fn)(struct shrinker *shrinker,
+					  struct shrink_control *sc);
+
 #define SHRINK_STOP (~0UL)
 /*
  * A callback you can register to apply pressure to ageable caches.
@@ -47,10 +58,8 @@ struct shrink_control {
  * @flags determine the shrinker abilities, like numa awareness
  */
 struct shrinker {
-	unsigned long (*count_objects)(struct shrinker *,
-				       struct shrink_control *sc);
-	unsigned long (*scan_objects)(struct shrinker *,
-				      struct shrink_control *sc);
+	shrinker_count_fn count_objects;
+	shrinker_scan_fn scan_objects;
 
 	int seeks;	/* seeks to recreate an obj */
 	long batch;	/* reclaim batch size, 0 = default */
