@@ -76,25 +76,4 @@ void lim_send_set_sta_key_req(tpAniSirGlobal, tLimMlmSetKeysReq *, uint16_t, uin
 void lim_post_sme_set_keys_cnf(tpAniSirGlobal, tLimMlmSetKeysReq *,
 			       tLimMlmSetKeysCnf *);
 
-#define  PTAPS  0xedb88320
-
-static inline uint32_t lim_crc_update(uint32_t crc, uint8_t x)
-{
-
-	/* Update CRC computation for 8 bits contained in x */
-	/* */
-	uint32_t z;
-	uint32_t fb;
-	int i;
-
-	z = crc ^ x;
-	for (i = 0; i < 8; i++) {
-		fb = z & 1;
-		z >>= 1;
-		if (fb)
-			z ^= PTAPS;
-	}
-	return z;
-}
-
 #endif /* __LIM_SECURITY_UTILS_H */

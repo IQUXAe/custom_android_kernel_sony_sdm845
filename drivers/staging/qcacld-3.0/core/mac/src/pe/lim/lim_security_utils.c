@@ -27,6 +27,8 @@
  * --------------------------------------------------------------------
  */
 
+#include <linux/crc32.h>
+
 #include "ani_global.h"
 #include "wni_api.h"
 
@@ -582,19 +584,11 @@ lim_encrypt_auth_frame(tpAniSirGlobal pMac, uint8_t keyId, uint8_t *pKey,
 
 void lim_compute_crc32(uint8_t *pDest, uint8_t *pSrc, uint16_t len)
 {
-	uint32_t crc;
+	uint32_t crc = ~crc32_le(~0U, pSrc, len);
 	int i;
 
-	crc = 0;
-	crc = ~crc;
-
-	while (len-- > 0)
-		crc = lim_crc_update(crc, *pSrc++);
-
-	crc = ~crc;
-
 	for (i = 0; i < SIR_MAC_WEP_IV_LENGTH; i++) {
-		pDest[i] = (uint8_t) crc;
+		pDest[i] = (uint8_t)crc;
 		crc >>= 8;
 	}
 } /****** end lim_compute_crc32() ******/
