@@ -1,0 +1,131 @@
+name: Kernel Build
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      device:
+        description: Device codename used for artifact naming
+        required: false
+        default: akari
+      defconfig:
+        description: Kernel defconfig
+        required: false
+        default: tama_akari_defconfig
+      clang_mode:
+        description: Toolchain source
+        required: false
+        type: choice
+        default: archive
+        options:
+          - archive
+          - system
+          - local
+      clang_archive_url:
+        description: Optional Neutron Clang archive URL override
+        required: false
+        default: 'https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/10032024/neutron-clang-10032024.tar.zst'
+      jobs:
+        description: Parallel build jobs or auto
+        required: false
+        default: '4'
+      make_targets:
+        description: Optional extra make targets, space-separated
+        required: false
+        default: ''
+      extra_make_args:
+        description: Optional extra make arguments, space-separated
+        required: false
+        default: ''
+
+concurrency:
+  group: kernel-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      DEFAULT_DEVICE: akari
+      DEFAULT_DEFCONFIG: tama_akari_defconfig
+      DEFAULT_CLANG_MODE: archive
+      DEFAULT_JOBS: 4
+      DEFAULT_CLANG_ARCHIVE_URL: ${{ vars.DEFAULT_NEUTRON_CLANG_URL || vars.DEFAULT_CLANG_ARCHIVE_URL || 'https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/10032024/neutron-clang-10032024.tar.zst' }}
+      DEVICE: ${{ github.event.inputs.device || vars.DEFAULT_DEVICE || 'akari' }}
+      DEFCONFIG: ${{ github.event.inputs.defconfig || vars.DEFAULT_DEFCONFIG || 'tama_akari_defconfig' }}
+      CLANG_MODE: ${{ github.event.inputs.clang_mode || vars.DEFAULT_CLANG_MODE || 'archive' }}
+      CLANG_ARCHIVE_URL: ${{ github.event.inputs.clang_archive_url }}
+      JOBS: ${{ github.event.inputs.jobs || vars.DEFAULT_JOBS || '4' }}
+      MAKE_TARGETS: ${{ github.event.inputs.make_targets }}
+      EXTRA_MAKE_ARGS: ${{ github.event.inputs.extra_make_args }}
+      OUT_DIR: out
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          df -h
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc \
+            bison \
+            build-essential \
+            ca-certificates \
+            ccache \
+            clang \
+            curl \
+            flex \
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabi \
+            git \
+            libelf-dev \
+            libssl-dev \
+            lld \
+            unzip \
+            zstd
+
+      - name: Validate toolchain source
+        run: |
+          if [ -z "${CLANG_ARCHIVE_URL}" ]; then
+            CLANG_ARCHIVE_URL="${DEFAULT_CLANG_ARCHIVE_URL}"
+          fi
+
+          if [ "${CLANG_MODE}" = "archive" ] && [ -z "${CLANG_ARCHIVE_URL}" ]; then
+            echo "Neutron Clang archive URL is not set."
+            echo "Provide clang_archive_url in workflow_dispatch or set DEFAULT_NEUTRON_CLANG_URL."
+            exit 1
+          fi
+
+          {
+            echo "CLANG_ARCHIVE_URL=${CLANG_ARCHIVE_URL}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Prepare build script
+        run: chmod +x scripts/ci/build-kernel.sh
+
+      - name: Build kernel
+        run: scripts/ci/build-kernel.sh 2>&1 | tee build.log
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ env.DEVICE }}-${{ github.sha }}
+          path: |
+            artifacts/**
+            build.log
+          if-no-files-found: warn

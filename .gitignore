@@ -10,6 +10,10 @@
 # Normal rules
 #
 .*
+!/.github/
+!/.github/workflows/
+!/.github/workflows/*.yml
+!/.github/workflows/*.yaml
 *.o
 *.o.*
 *.a
@@ -129,6 +133,7 @@ Android.bp
 temp_bluecross
 /out/
 kpatch/
+build_local.sh
 
 # Neutron Clang / antman
 /bin/
