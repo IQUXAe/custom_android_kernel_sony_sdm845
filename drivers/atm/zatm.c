@@ -581,12 +581,8 @@ static void close_rx(struct atm_vcc *vcc)
 	zwait();
 	zout(uPD98401_DEACT_CHAN | uPD98401_CHAN_RT | (zatm_vcc->rx_chan <<
 	    uPD98401_CHAN_ADDR_SHIFT),CMR);
-	spin_unlock_irqrestore(&zatm_dev->lock, flags);
-
-	usleep_range(10, 20); /* check strict 10us requirement */
-
-	spin_lock_irqsave(&zatm_dev->lock, flags);
 	zwait();
+	udelay(10); /* why oh why ... ? */
 	zout(uPD98401_CLOSE_CHAN | uPD98401_CHAN_RT | (zatm_vcc->rx_chan <<
 	    uPD98401_CHAN_ADDR_SHIFT),CMR);
 	zwait();
