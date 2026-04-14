@@ -21,6 +21,7 @@
 #include <linux/ctype.h>
 #include <linux/firmware.h>
 #include <linux/slab.h>
+#include <linux/bitops.h>
 #include <linux/gpio.h>
 #include <linux/sched.h>
 #include <linux/time.h>
@@ -4822,8 +4823,13 @@ static int get_num_fingers_f12(struct clearpad_t *this,
 	int *num_fingers)
 {
 	int rc;
-	u16 val;
+	u16 val, attention_mask;
 	const int max_objects = this->extents.n_fingers;
+
+	if (!max_objects) {
+		*num_fingers = 0;
+		return 0;
+	}
 
 	/* F12_2D_DATA15: Object Attention */
 	rc = clearpad_get_block(SYNA(this, F12_2D, DATA, 15),
@@ -4832,8 +4838,12 @@ static int get_num_fingers_f12(struct clearpad_t *this,
 		goto end;
 
 	val = le16_to_cpu(val);
-
-	*num_fingers = min_t(int, fls(val), max_objects);
+	if (max_objects >= 16)
+		attention_mask = U16_MAX;
+	else
+		attention_mask = (u16)GENMASK(max_objects - 1, 0);
+	val &= attention_mask;
+	*num_fingers = hweight16(val);
 
 	LOG_CHECK(this, "fingers=%d, 0x%04hX", *num_fingers, val);
 end:
@@ -4845,6 +4855,8 @@ static int clearpad_read_fingers_f12(struct clearpad_t *this)
 	int rc, finger, num_fingers;
 	u8 buf[this->extents.n_fingers * this->extents.n_bytes_per_object];
 
+	memset(buf, 0, sizeof(buf));
+
 	rc = get_num_fingers_f12(this, &num_fingers);
 	if (rc)
 		goto end;
@@ -4852,14 +4864,9 @@ static int clearpad_read_fingers_f12(struct clearpad_t *this)
 	if (num_fingers > 0) {
 		/* F12_2D_DATA01: Sensed Objects */
 		rc = clearpad_get_block(SYNA(this, F12_2D, DATA, 1),
-			buf, num_fingers * this->extents.n_bytes_per_object);
+			buf, sizeof(buf));
 		if (rc)
 			goto end;
-	}
-
-	if (num_fingers < this->extents.n_fingers) {
-		memset(&buf[num_fingers * this->extents.n_bytes_per_object], 0,
-		       (this->extents.n_fingers - num_fingers) * this->extents.n_bytes_per_object);
 	}
 
 	for (finger = 0; finger < this->extents.n_fingers; finger++)
@@ -5100,16 +5107,30 @@ end:
 static irqreturn_t clearpad_threaded_handler(int irq, void *dev_id)
 {
 	struct clearpad_t *this = dev_id;
+	unsigned long flags;
 	bool locked;
+
+	get_monotonic_boottime(&this->interrupt.threaded_handler_ts);
 
 	LOCK(&this->lock);
 	locked = touchctrl_lock_power(this, "irq_handler", true, false);
+	/* workaround to clear interrupt status */
+	if (!locked)
+		HWLOGW(this, "read interrupt status though no power lock\n");
 
-	/* 
-	 * Handle native IRQ event. We don't need synthetic 'dev_busy'
-	 * state tracking because threaded IRQs are serialized by the kernel.
-	 */
-	(void)clearpad_process_irq(this);
+	do {
+		(void)clearpad_process_irq(this);
+
+		spin_lock_irqsave(&this->slock, flags);
+		if (likely(!this->irq_pending)) {
+			this->dev_busy = false;
+			spin_unlock_irqrestore(&this->slock, flags);
+			break;
+		}
+		this->irq_pending = false;
+		spin_unlock_irqrestore(&this->slock, flags);
+		LOGD(this, "touch irq pending\n");
+	} while (true);
 
 	if (locked)
 		touchctrl_unlock_power(this, "irq_handler");
@@ -5120,12 +5141,32 @@ static irqreturn_t clearpad_threaded_handler(int irq, void *dev_id)
 
 static irqreturn_t clearpad_hard_handler(int irq, void *dev_id)
 {
-	/* 
-	 * Removed incredibly slow gpio_get_value() and spin_locks from hard IRQ context.
-	 * Top-half now executes in ~1us instead of ~50us. Kernel will mask IRQ and 
-	 * automatically wake up the threaded handler.
-	 */
-	return IRQ_WAKE_THREAD;
+	struct clearpad_t *this = dev_id;
+	unsigned long flags;
+	irqreturn_t ret;
+	bool val;
+
+	get_monotonic_boottime(&this->interrupt.hard_handler_ts);
+
+	spin_lock_irqsave(&this->slock, flags);
+
+	val = gpio_get_value(this->pdata->irq_gpio);
+	if (val) {
+		spin_unlock_irqrestore(&this->slock, flags);
+		return IRQ_HANDLED;
+	}
+
+	if (unlikely(this->dev_busy)) {
+		this->irq_pending = true;
+		ret = IRQ_HANDLED;
+	} else {
+		this->dev_busy = true;
+		ret = IRQ_WAKE_THREAD;
+	}
+	spin_unlock_irqrestore(&this->slock, flags);
+	if (ret == IRQ_HANDLED)
+		LOGD(this, "touch irq busy\n");
+	return ret;
 }
 
 static irqreturn_t clearpad_noise_det_threaded_handler(int irq, void *dev_id)
