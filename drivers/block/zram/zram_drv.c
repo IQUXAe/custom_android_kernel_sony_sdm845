@@ -1984,23 +1984,6 @@ static int zram_add(void)
 
 	strlcpy(zram->compressor, default_compressor, sizeof(zram->compressor));
 
-	/* Default ZRAM size to 2GB */
-	{
-		u64 default_disksize = 2147483648ULL;
-
-		if (zram_meta_alloc(zram, default_disksize)) {
-			struct zcomp *comp = zcomp_create(zram->compressor);
-
-			if (IS_ERR(comp)) {
-				zram_meta_free(zram, default_disksize);
-			} else {
-				zram->comp = comp;
-				zram->disksize = default_disksize;
-				set_capacity(zram->disk, zram->disksize >> SECTOR_SHIFT);
-			}
-		}
-	}
-
 	zram_debugfs_register(zram);
 	pr_info("Added device: %s\n", zram->disk->disk_name);
 	return device_id;

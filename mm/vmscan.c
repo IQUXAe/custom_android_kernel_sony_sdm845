@@ -150,7 +150,7 @@ struct scan_control {
 /*
  * From 0 .. 100.  Higher means more swappy.
  */
-int vm_swappiness = 100;
+int vm_swappiness = 60;
 /*
  * The total number of pages which are beyond the high watermark within all
  * zones.
@@ -1838,13 +1838,7 @@ shrink_inactive_list(unsigned long nr_to_scan, struct lruvec *lruvec,
 		return 0;
 
 	while (unlikely(too_many_isolated(pgdat, file, sc, safe))) {
-		/*
-		 * HZ/10 is about 100ms, which is a very aggressive timeout and
-		 * causes visible UI freezes (janks) during heavy memory pressure.
-		 * Reduce this to HZ/50 (20ms) to give I/O some time without
-		 * stalling the entire direct reclaimer thread for too long.
-		 */
-		congestion_wait(BLK_RW_ASYNC, HZ/50);
+		congestion_wait(BLK_RW_ASYNC, HZ/10);
 
 		/* We are about to die and free our memory. Return now. */
 		if (fatal_signal_pending(current))
@@ -1964,7 +1958,7 @@ shrink_inactive_list(unsigned long nr_to_scan, struct lruvec *lruvec,
 	 */
 	if (!sc->hibernation_mode && !current_is_kswapd() &&
 	    current_may_throttle())
-		wait_iff_congested(pgdat, BLK_RW_ASYNC, HZ/50);
+		wait_iff_congested(pgdat, BLK_RW_ASYNC, HZ/10);
 
 	trace_mm_vmscan_lru_shrink_inactive(pgdat->node_id,
 			nr_scanned, nr_reclaimed,
@@ -2855,8 +2849,6 @@ static unsigned long do_try_to_free_pages(struct zonelist *zonelist,
 					  struct scan_control *sc)
 {
 	int initial_priority = sc->priority;
-	u64 start_time = ktime_get_ns();
-	bool reclaim_timeout = false;
 retry:
 	delayacct_freepages_start();
 
@@ -2882,26 +2874,12 @@ retry:
 		if (sc->priority < DEF_PRIORITY - 2)
 			sc->may_writepage = 1;
 
-		/* 
-		 * ANDROID: "Imitate PSI" -> limit Direct Reclaim stall 
-		 * If a user app spins for >15ms trying to free RAM,
-		 * abort direct reclaim to prevent UI stutter (stuttering cursor, laggy switch).
-		 */
-		if (!current_is_kswapd() && (ktime_get_ns() - start_time > 15000000ULL)) {
-			reclaim_timeout = true;
-			/* Force the system to recognize critical memory pressure */
-			vmpressure_prio(sc->gfp_mask, sc->target_mem_cgroup, 0); 
-			break;
-		}
 	} while (--sc->priority >= 0);
 
 	delayacct_freepages_end();
 
 	if (sc->nr_reclaimed)
 		return sc->nr_reclaimed;
-
-	if (reclaim_timeout)
-		return 1; /* Fake progress to avoid immediate OOM, let kswapd/LMK work */
 
 	/* Aborted reclaim to try compaction? don't OOM, then */
 	if (sc->compaction_ready)
