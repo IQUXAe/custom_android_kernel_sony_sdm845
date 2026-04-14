@@ -194,7 +194,7 @@ enum binder_stat_types {
 };
 
 struct binder_stats {
-	atomic_t br[_IOC_NR(BR_FROZEN_REPLY) + 1];
+	atomic_t br[_IOC_NR(BR_FAILED_REPLY) + 1];
 	atomic_t bc[_IOC_NR(BC_REPLY_SG) + 1];
 	atomic_t obj_created[BINDER_STAT_COUNT];
 	atomic_t obj_deleted[BINDER_STAT_COUNT];
@@ -557,7 +557,6 @@ struct binder_proc {
 	struct hlist_node deferred_work_node;
 	int deferred_work;
 	bool is_dead;
-	bool is_frozen;
 
 	struct list_head todo;
 	struct binder_stats stats;
@@ -5014,53 +5013,6 @@ static int binder_ioctl_get_node_debug_info(struct binder_proc *proc,
 	return 0;
 }
 
-static int binder_ioctl_freeze(struct binder_freeze_info *info,
-			       struct binder_proc *source_proc)
-{
-	struct binder_proc *target_proc;
-	bool found = false;
-
-	mutex_lock(&binder_procs_lock);
-	hlist_for_each_entry(target_proc, &binder_procs, proc_node) {
-		if (target_proc->pid == info->pid) {
-			binder_inner_proc_lock(target_proc);
-			target_proc->is_frozen = info->enable;
-			binder_inner_proc_unlock(target_proc);
-			found = true;
-			break;
-		}
-	}
-	mutex_unlock(&binder_procs_lock);
-
-	if (!found)
-		return -EINVAL;
-
-	return 0;
-}
-
-static int binder_ioctl_get_frozen_info(struct binder_freeze_info *info)
-{
-	struct binder_proc *target_proc;
-	bool found = false;
-
-	mutex_lock(&binder_procs_lock);
-	hlist_for_each_entry(target_proc, &binder_procs, proc_node) {
-		if (target_proc->pid == info->pid) {
-			binder_inner_proc_lock(target_proc);
-			info->enable = target_proc->is_frozen;
-			binder_inner_proc_unlock(target_proc);
-			found = true;
-			break;
-		}
-	}
-	mutex_unlock(&binder_procs_lock);
-
-	if (!found)
-		return -EINVAL;
-
-	return 0;
-}
-
 static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int ret;
@@ -5173,32 +5125,6 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		if (ret < 0)
 			goto err;
 
-		if (copy_to_user(ubuf, &info, sizeof(info))) {
-			ret = -EFAULT;
-			goto err;
-		}
-		break;
-	}
-	case BINDER_FREEZE: {
-		struct binder_freeze_info info;
-
-		if (copy_from_user(&info, ubuf, sizeof(info))) {
-			ret = -EFAULT;
-			goto err;
-		}
-		ret = binder_ioctl_freeze(&info, proc);
-		break;
-	}
-	case BINDER_GET_FROZEN_INFO: {
-		struct binder_freeze_info info;
-
-		if (copy_from_user(&info, ubuf, sizeof(info))) {
-			ret = -EFAULT;
-			goto err;
-		}
-		ret = binder_ioctl_get_frozen_info(&info);
-		if (ret < 0)
-			goto err;
 		if (copy_to_user(ubuf, &info, sizeof(info))) {
 			ret = -EFAULT;
 			goto err;
@@ -5861,8 +5787,7 @@ static const char * const binder_return_strings[] = {
 	"BR_FINISHED",
 	"BR_DEAD_BINDER",
 	"BR_CLEAR_DEATH_NOTIFICATION_DONE",
-	"BR_FAILED_REPLY",
-	"BR_FROZEN_REPLY"
+	"BR_FAILED_REPLY"
 };
 
 static const char * const binder_command_strings[] = {
