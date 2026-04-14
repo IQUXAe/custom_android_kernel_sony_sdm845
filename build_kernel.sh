@@ -41,41 +41,41 @@ KPTOOLS="./kpatch/kptools"
 KPIMG="./kpatch/kpimg"
 
 if [ -f "$KERNEL_IMAGE" ] && [ -f "$KPTOOLS" ] && [ -f "$KPIMG" ]; then
-    echo ""
-    echo "Patching kernel with KernelPatch (APatch)..."
-    
-    # Static superkey for APatch (easy to remember)
-    # Can be overridden by setting SUPERKEY environment variable
-    SUPERKEY="${SUPERKEY:-akari123}"
-    
-    # Backup original kernel
-    cp "$KERNEL_IMAGE" "$KERNEL_BACKUP"
-    
-    # Patch uncompressed Image
-    $KPTOOLS -p -i "$KERNEL_IMAGE" -k "$KPIMG" -s "$SUPERKEY" -o "$PATCHED_TEMP"
-    
-    if [ -f "$PATCHED_TEMP" ]; then
-        # Replace original with patched
-        mv "$PATCHED_TEMP" "$KERNEL_IMAGE"
-        
-        # Rebuild Image.gz-dtb
-        echo "Rebuilding Image.gz-dtb..."
-        gzip -9 -c "$KERNEL_IMAGE" > "out/arch/arm64/boot/Image.gz"
-        
-        # Find and concatenate DTB files
-        cat out/arch/arm64/boot/Image.gz out/arch/arm64/boot/dts/qcom/*.dtb > "$KERNEL_GZ_DTB"
-        
-        echo ""
-        echo "=========================================="
-        echo "KernelPatch applied successfully!"
-        echo "Patched image: $KERNEL_GZ_DTB"
-        echo "Original backup: $KERNEL_BACKUP"
-        echo "SuperKey: $SUPERKEY"
-        echo "=========================================="
-        echo ""
-        echo "Use this superkey in APatch Manager app."
+    if [ -z "${SUPERKEY:-}" ]; then
+        echo "Note: SUPERKEY is not set. Skipping APatch integration."
     else
-        echo "Warning: KernelPatch failed. Original image is still available."
+        echo ""
+        echo "Patching kernel with KernelPatch (APatch)..."
+
+        # Backup original kernel
+        cp "$KERNEL_IMAGE" "$KERNEL_BACKUP"
+
+        # Patch uncompressed Image
+        $KPTOOLS -p -i "$KERNEL_IMAGE" -k "$KPIMG" -s "$SUPERKEY" -o "$PATCHED_TEMP"
+
+        if [ -f "$PATCHED_TEMP" ]; then
+            # Replace original with patched
+            mv "$PATCHED_TEMP" "$KERNEL_IMAGE"
+
+            # Rebuild Image.gz-dtb
+            echo "Rebuilding Image.gz-dtb..."
+            gzip -9 -c "$KERNEL_IMAGE" > "out/arch/arm64/boot/Image.gz"
+
+            # Find and concatenate DTB files
+            cat out/arch/arm64/boot/Image.gz out/arch/arm64/boot/dts/qcom/*.dtb > "$KERNEL_GZ_DTB"
+
+            echo ""
+            echo "=========================================="
+            echo "KernelPatch applied successfully!"
+            echo "Patched image: $KERNEL_GZ_DTB"
+            echo "Original backup: $KERNEL_BACKUP"
+            echo "SuperKey: taken from environment"
+            echo "=========================================="
+            echo ""
+            echo "Use the SUPERKEY value you exported in APatch Manager app."
+        else
+            echo "Warning: KernelPatch failed. Original image is still available."
+        fi
     fi
 else
     if [ ! -f "$KERNEL_IMAGE" ]; then
@@ -86,4 +86,3 @@ else
         echo "To enable, download kptools and kpimg to ./kpatch/"
     fi
 fi
-
