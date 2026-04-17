@@ -44,6 +44,9 @@ concurrency:
   group: kernel-build-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -56,6 +59,8 @@ jobs:
       DEFAULT_CLANG_MODE: archive
       DEFAULT_JOBS: 4
       DEFAULT_CLANG_ARCHIVE_URL: ${{ vars.DEFAULT_NEUTRON_CLANG_URL || vars.DEFAULT_CLANG_ARCHIVE_URL || 'https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/10032024/neutron-clang-10032024.tar.zst' }}
+      DEFAULT_ANYKERNEL_REPO: https://github.com/osm0sis/AnyKernel3.git
+      DEFAULT_ANYKERNEL_BRANCH: master
       DEVICE: ${{ github.event.inputs.device || vars.DEFAULT_DEVICE || 'akari' }}
       DEFCONFIG: ${{ github.event.inputs.defconfig || vars.DEFAULT_DEFCONFIG || 'tama_akari_defconfig' }}
       CLANG_MODE: ${{ github.event.inputs.clang_mode || vars.DEFAULT_CLANG_MODE || 'archive' }}
@@ -63,6 +68,8 @@ jobs:
       JOBS: ${{ github.event.inputs.jobs || vars.DEFAULT_JOBS || '4' }}
       MAKE_TARGETS: ${{ github.event.inputs.make_targets }}
       EXTRA_MAKE_ARGS: ${{ github.event.inputs.extra_make_args }}
+      ANYKERNEL_REPO: ${{ vars.DEFAULT_ANYKERNEL_REPO || 'https://github.com/osm0sis/AnyKernel3.git' }}
+      ANYKERNEL_BRANCH: ${{ vars.DEFAULT_ANYKERNEL_BRANCH || 'master' }}
       OUT_DIR: out
     steps:
       - name: Free disk space
@@ -76,6 +83,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          submodules: recursive
 
       - name: Install build dependencies
         run: |
@@ -96,6 +104,7 @@ jobs:
             libssl-dev \
             lld \
             unzip \
+            zip \
             zstd
 
       - name: Validate toolchain source
@@ -124,8 +133,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-${{ env.DEVICE }}-${{ github.sha }}
+          name: Build-Artifacts-${{ env.DEVICE }}-${{ github.sha }}
           path: |
-            artifacts/**
+            artifacts/
             build.log
           if-no-files-found: warn

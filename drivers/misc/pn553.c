@@ -61,11 +61,7 @@
 #include <linux/rcupdate.h>
 #include <linux/version.h>
 #include <linux/sched.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
 #include <linux/signal.h>
-#else
-#include <linux/sched/signal.h>
-#endif
 #include <linux/workqueue.h>
 
 #include <linux/timer.h>
@@ -1038,7 +1034,7 @@ EXPORT_SYMBOL(pn544_dev_ioctl);
 static void secure_timer_workqueue(struct work_struct *Wq)
 {
   p61_access_state_t current_state = P61_STATE_INVALID;
-  printk( KERN_INFO "secure_timer_callback: called (%lu).\n", jiffies);
+  pr_info("secure_timer_callback: called (%lu)\n", jiffies);
   /* Locking the critical section: ESE_PWR_OFF to allow eSE to shutdown peacefully :: START */
   get_ese_lock(P61_STATE_WIRED, MAX_ESE_ACCESS_TIME_OUT_MS);
   p61_update_access_state(pn544_dev, P61_STATE_SECURE_MODE, false);
@@ -1046,14 +1042,14 @@ static void secure_timer_workqueue(struct work_struct *Wq)
 
   if((current_state & (P61_STATE_SPI|P61_STATE_SPI_PRIO)) == 0)
   {
-      printk( KERN_INFO "secure_timer_callback: make se_pwer_gpio low, state = %d", current_state);
+      pr_info("secure_timer_callback: make se_pwer_gpio low, state = %d", current_state);
       pn544_gpio_set_value(pn544_dev->ese_pwr_gpio, 0);
       /* Delay (2.5ms) after SVDD_PWR_OFF for the shutdown settlement time */
       usleep_range(2500, 3000);
       if(pn544_dev->nfc_service_pid == 0x00)
       {
           pn544_gpio_set_value(pn544_dev->ven_gpio, 0);
-          printk( KERN_INFO "secure_timer_callback :make ven_gpio low, state = %d", current_state);
+          pr_info("secure_timer_callback: make ven_gpio low, state = %d", current_state);
       }
   }
   pn544_dev->secure_timer_cnt = 0;
@@ -1062,11 +1058,7 @@ static void secure_timer_workqueue(struct work_struct *Wq)
   return;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,15,0)
-static void secure_timer_callback( unsigned long data )
-#else
-static void secure_timer_callback( struct timer_list *t )
-#endif
+static void secure_timer_callback(unsigned long arg)
 {
     /* Flush and push the timer callback event to the bottom half(work queue)
     to be executed later, at a safer time */
@@ -1089,12 +1081,7 @@ static long start_seccure_timer(unsigned long timer_value)
     /* Start the timer if timer value is non-zero */
     if(timer_value)
     {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,15,0)
-        init_timer(&secure_timer);
-        setup_timer( &secure_timer, secure_timer_callback, 0 );
-#else
-        timer_setup( &secure_timer, secure_timer_callback, 0 );
-#endif
+setup_timer(&secure_timer, secure_timer_callback, 0);
 
         pr_info("start_seccure_timer: timeout %lums (%lu)\n",timer_value, jiffies );
         ret = mod_timer( &secure_timer, jiffies + msecs_to_jiffies(timer_value));
@@ -1109,7 +1096,7 @@ static long secure_timer_operation(struct pn544_dev *pn544_dev, unsigned long ar
     long ret = -EINVAL;
     unsigned long timer_value =  arg;
 
-    printk( KERN_INFO "secure_timer_operation, %d\n",pn544_dev->chip_pwr_scheme);
+    pr_info("secure_timer_operation: chip_pwr_scheme=%d\n", pn544_dev->chip_pwr_scheme);
     if(pn544_dev->chip_pwr_scheme == PN80T_LEGACY_PWR_SCHEME)
     {
         ret = start_seccure_timer(timer_value);
@@ -1193,7 +1180,7 @@ static long set_jcop_download_state(unsigned long arg)
 int get_ese_lock(p61_access_state_t p61_current_state, int timeout)
 {
     if (mutex_lock_interruptible(&ese_access_mutex)) {
-        printk("get_ese_lock: interrupted p61_current_state = %d\n", p61_current_state);
+        pr_info("get_ese_lock: interrupted p61_current_state=%d\n", p61_current_state);
         return -EBUSY;
     }
     return 0;

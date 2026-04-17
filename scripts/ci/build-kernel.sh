@@ -14,6 +14,8 @@ CLANG_ARCHIVE_URL="${CLANG_ARCHIVE_URL:-}"
 CLANG_DIR="${CLANG_DIR:-}"
 MAKE_TARGETS="${MAKE_TARGETS:-}"
 EXTRA_MAKE_ARGS="${EXTRA_MAKE_ARGS:-}"
+ANYKERNEL_REPO="${ANYKERNEL_REPO:-https://github.com/osm0sis/AnyKernel3.git}"
+ANYKERNEL_BRANCH="${ANYKERNEL_BRANCH:-master}"
 
 export ARCH
 export SUBARCH
@@ -166,8 +168,6 @@ build_kernel() {
     make_args+=("CLANG_TRIPLE=aarch64-linux-gnu-")
 
     if [[ -n "${EXTRA_MAKE_ARGS}" ]]; then
-        # Intentional word splitting for user-supplied make arguments.
-        # shellcheck disable=SC2206
         make_args+=(${EXTRA_MAKE_ARGS})
     fi
 
@@ -176,7 +176,6 @@ build_kernel() {
 
     log "Building kernel"
     if [[ -n "${MAKE_TARGETS}" ]]; then
-        # shellcheck disable=SC2206
         local target_args=(${MAKE_TARGETS})
         make "${make_args[@]}" -j"${JOBS}" "${target_args[@]}"
     else
@@ -184,34 +183,75 @@ build_kernel() {
     fi
 }
 
-collect_artifacts() {
-    local artifact_dir="${ROOT_DIR}/artifacts"
-
-    rm -rf "${artifact_dir}"
-    mkdir -p "${artifact_dir}"
-
-    cp "${ROOT_DIR}/${OUT_DIR}/.config" "${artifact_dir}/kernel-${DEVICE}.config"
-
-    if [[ -f "${ROOT_DIR}/${OUT_DIR}/arch/arm64/boot/Image" ]]; then
-        cp "${ROOT_DIR}/${OUT_DIR}/arch/arm64/boot/Image" "${artifact_dir}/Image-${DEVICE}"
-    fi
-
-    if [[ -f "${ROOT_DIR}/${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" ]]; then
-        cp "${ROOT_DIR}/${OUT_DIR}/arch/arm64/boot/Image.gz-dtb" "${artifact_dir}/Image.gz-dtb-${DEVICE}"
-    fi
-
-    if [[ -f "${ROOT_DIR}/${OUT_DIR}/vmlinux" ]]; then
-        cp "${ROOT_DIR}/${OUT_DIR}/vmlinux" "${artifact_dir}/vmlinux-${DEVICE}"
-    fi
-}
-
-main() {
+run_build() {
     cd "${ROOT_DIR}"
     resolve_jobs
     setup_toolchain
     show_tool_versions
-    build_kernel
+
+    if build_kernel; then
+        log "Build succeeded"
+    else
+        log "Build failed, still collecting artifacts"
+    fi
+
     collect_artifacts
+}
+
+collect_artifacts() {
+    local artifact_dir="${ROOT_DIR}/artifacts"
+    local ak_dir="${artifact_dir}/AnyKernel3"
+    local kernel_image="${ROOT_DIR}/${OUT_DIR}/arch/arm64/boot/Image.gz-dtb"
+    local fallback_image="${ROOT_DIR}/${OUT_DIR}/arch/arm64/boot/Image"
+    local zip_name="AnyKernel3-${DEVICE}-$(date +%Y%m%d)"
+
+    rm -rf "${artifact_dir}"
+    mkdir -p "${artifact_dir}"
+
+    if [[ -f "${ROOT_DIR}/${OUT_DIR}/.config" ]]; then
+        cp "${ROOT_DIR}/${OUT_DIR}/.config" "${artifact_dir}/kernel-${DEVICE}.config"
+    fi
+
+    if [[ ! -f "${kernel_image}" && ! -f "${fallback_image}" ]]; then
+        die "Kernel image was not produced, cannot create AnyKernel3 package"
+    fi
+
+    log "Cloning AnyKernel3 from ${ANYKERNEL_REPO} (${ANYKERNEL_BRANCH})"
+    git clone --depth=1 --branch "${ANYKERNEL_BRANCH}" "${ANYKERNEL_REPO}" "${ak_dir}"
+    rm -rf "${ak_dir}/.git"
+
+    if [[ -f "${ROOT_DIR}/${OUT_DIR}/vmlinux" ]]; then
+        cp "${ROOT_DIR}/${OUT_DIR}/vmlinux" "${artifact_dir}/vmlinux-${DEVICE}"
+    fi
+
+    if [[ -f "${kernel_image}" ]]; then
+        cp "${kernel_image}" "${ak_dir}/Image.gz-dtb"
+        zip_name+="-Image.gz-dtb"
+    else
+        cp "${fallback_image}" "${ak_dir}/Image"
+        zip_name+="-Image"
+    fi
+
+    perl -0pi -e 's/kernel\.string=.*/kernel.string=Akari Kernel/;' "${ak_dir}/anykernel.sh"
+    perl -0pi -e 's/do\.devicecheck=.*/do.devicecheck=1/;' "${ak_dir}/anykernel.sh"
+    perl -0pi -e 's/device\.name1=.*/device.name1=akari/;' "${ak_dir}/anykernel.sh"
+    perl -0pi -e 's/device\.name2=.*/device.name2=akatsuki/;' "${ak_dir}/anykernel.sh"
+    perl -0pi -e 's/device\.name3=.*/device.name3=aurora/;' "${ak_dir}/anykernel.sh"
+    perl -0pi -e 's/device\.name4=.*/device.name4=apollo/;' "${ak_dir}/anykernel.sh"
+    perl -0pi -e 's/device\.name5=.*/device.name5=/;' "${ak_dir}/anykernel.sh"
+    perl -0pi -e 's|^BLOCK=.*|BLOCK=/dev/block/bootdevice/by-name/boot;|m' "${ak_dir}/anykernel.sh"
+    perl -0pi -e 's|^IS_SLOT_DEVICE=.*|IS_SLOT_DEVICE=0;|m' "${ak_dir}/anykernel.sh"
+    perl -0pi -e 's|^RAMDISK_COMPRESSION=.*|RAMDISK_COMPRESSION=auto;|m' "${ak_dir}/anykernel.sh"
+
+    (cd "${ak_dir}" && zip -r9 "../${zip_name}.zip" .)
+
+    log "Created flashable AnyKernel3 archive:"
+    ls -la "${artifact_dir}"/*.zip
+
+}
+
+main() {
+    run_build
 }
 
 main "$@"
