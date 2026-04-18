@@ -182,11 +182,6 @@ static const u32 bbr_extra_acked_max_us = 100 * 1000;
 /* Each cycle, try to hold sub-unity gain until inflight <= BDP. */
 static const bool bbr_drain_to_target = true;   /* default: enabled */
 
-/*extern bool tcp_snd_wnd_test(const struct tcp_sock *tp,
-                 const struct sk_buff *skb,
-                 unsigned int cur_mss);*/ /* bbp-mod49#7 rip */
-
-/* bbp-mod49#8 add begin */
 static bool tcp_snd_wnd_test(const struct tcp_sock *tp,
                              const struct sk_buff *skb,
                              unsigned int cur_mss)
@@ -198,9 +193,6 @@ static bool tcp_snd_wnd_test(const struct tcp_sock *tp,
 
         return !after(end_seq, tcp_wnd_end(tp));
 }
-/* bbp-mod49#8 add end */
-
-/* bbrplus#5 add end */
 
 /* Do we estimate that STARTUP filled the pipe? */
 static bool bbr_full_bw_reached(const struct sock *sk)
@@ -210,7 +202,6 @@ static bool bbr_full_bw_reached(const struct sock *sk)
 	return bbr->full_bw_reached;
 }
 
-/* bbrplus#6 add begin */
 static void bbr_set_cycle_idx(struct sock *sk, int cycle_idx)
 {
     struct bbr *bbr = inet_csk_ca(sk);
@@ -219,9 +210,8 @@ static void bbr_set_cycle_idx(struct sock *sk, int cycle_idx)
                             BBR_UNIT : bbr_pacing_gain[bbr->cycle_idx];
 }
 
-u32 bbr_max_bw(const struct sock *sk);
-u32 bbr_inflight(struct sock *sk, u32 bw, int gain);
-u32 bbr_max_bw(const struct sock *sk);
+static u32 bbr_max_bw(const struct sock *sk);
+static u32 bbr_inflight(struct sock *sk, u32 bw, int gain);
 
 static void bbr_drain_to_target_cycling(struct sock *sk,
                                                     const struct rate_sample *rs)
@@ -229,8 +219,7 @@ static void bbr_drain_to_target_cycling(struct sock *sk,
     struct tcp_sock *tp = tcp_sk(sk);
     struct bbr *bbr = inet_csk_ca(sk);
     u32 elapsed_us =
-                /*tcp_stamp_us_delta(tp->delivered_mstamp, bbr->cycle_mstamp);*/ /* bbp-mod49#3 rip */
-                skb_mstamp_us_delta(&tp->delivered_mstamp, &bbr->cycle_mstamp);  /* bbp-mod49#4 add */
+                skb_mstamp_us_delta(&tp->delivered_mstamp, &bbr->cycle_mstamp);
     u32 inflight, bw;
     if (bbr->mode != BBR_PROBE_BW)
         return;
@@ -285,10 +274,9 @@ static u16 bbr_extra_acked(const struct sock *sk)
     struct bbr *bbr = inet_csk_ca(sk);
     return max(bbr->extra_acked[0], bbr->extra_acked[1]);
 }
-/* bbrplus#6 add end */
 
 /* Return the windowed max recent bandwidth sample, in pkts/uS << BW_SCALE. */
-u32 bbr_max_bw(const struct sock *sk)  /* bbrplus#7 diff orig - static u32 bbr_max_bw(const struct sock *sk) */
+static u32 bbr_max_bw(const struct sock *sk)
 {
 	struct bbr *bbr = inet_csk_ca(sk);
 
@@ -464,7 +452,6 @@ static u32 bbr_target_cwnd(struct sock *sk, u32 bw, int gain)
 }
  * bbrplus#9 rip end */
 
-/* bbrplus#10 add begin */
 static u32 bbr_bdp(struct sock *sk, u32 bw, int gain)
 {
     struct bbr *bbr = inet_csk_ca(sk);
@@ -520,7 +507,6 @@ static u32 bbr_ack_aggregation_cwnd(struct sock *sk)
     }
     return aggr_cwnd;
 }
-/* bbrplus#10 add end */
 
 /* An optimization in BBR to reduce losses: On the first round of recovery, we
  * follow the packet conservation principle: send P packets per P packets acked.
@@ -1196,8 +1182,7 @@ static void bbr_set_state(struct sock *sk, u8 new_state)
 
 static struct tcp_congestion_ops tcp_bbr_cong_ops __read_mostly = {
 	.flags		= TCP_CONG_NON_RESTRICTED,
-	/* .name		= "bbr", */ /* bbrplus#24 rip */
-	.name		= "bbrplus", /* bbrplus#25 add */
+	.name		= "bbrplus",
 	.owner		= THIS_MODULE,
 	.init		= bbr_init,
 	.cong_control	= bbr_main,
@@ -1230,4 +1215,3 @@ MODULE_AUTHOR("Yuchung Cheng <ycheng@google.com>");
 MODULE_AUTHOR("Soheil Hassas Yeganeh <soheil@google.com>");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("TCP BBR (Bottleneck Bandwidth and RTT)");
-
