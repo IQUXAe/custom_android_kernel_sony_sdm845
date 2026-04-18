@@ -93,6 +93,18 @@
 #endif
 #ifdef CONFIG_KSU_SUSFS_SUS_MAP
 #include <linux/susfs_def.h>
+
+static bool susfs_sus_map_file_hidden(const struct file *file)
+{
+	struct inode *inode;
+
+	if (!file)
+		return false;
+
+	inode = file_inode(file);
+	return unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
+			susfs_is_current_proc_umounted());
+}
 #endif
 #include <trace/events/oom.h>
 #include "internal.h"
@@ -877,20 +889,15 @@ static ssize_t mem_rw(struct file *file, char __user *buf,
 		size_t this_len = min_t(size_t, count, PAGE_SIZE);
 #ifdef CONFIG_KSU_SUSFS_SUS_MAP
 		vma = find_vma(mm, addr);
-		if (vma && vma->vm_file) {
-			struct inode *inode = file_inode(vma->vm_file);
-			if (unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
-				susfs_is_current_proc_umounted()))
-			{
-				if (write) {
-					copied = -EFAULT;
-				} else {
-					copied = -EIO;
-				}
-				*ppos = addr;
-				mmput(mm);
-				goto free;
+		if (vma && susfs_sus_map_file_hidden(vma->vm_file)) {
+			if (write) {
+				copied = -EFAULT;
+			} else {
+				copied = -EIO;
 			}
+			*ppos = addr;
+			mmput(mm);
+			goto free;
 		}
 #endif
 
@@ -2398,9 +2405,7 @@ proc_map_files_readdir(struct file *file, struct dir_context *ctx)
 			if (!vma->vm_file)
 				continue;
 #ifdef CONFIG_KSU_SUSFS_SUS_MAP
-			if (unlikely(test_bit(AS_FLAGS_SUS_MAP, &file_inode(vma->vm_file)->i_mapping->flags) &&
-				susfs_is_current_proc_umounted()))
-			{
+			if (susfs_sus_map_file_hidden(vma->vm_file)) {
 				continue;
 			}
 #endif

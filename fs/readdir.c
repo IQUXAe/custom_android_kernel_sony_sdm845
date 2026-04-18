@@ -24,6 +24,19 @@
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 #include <linux/susfs_def.h>
 extern bool susfs_is_inode_sus_path(struct inode *inode);
+
+static bool should_hide_dirent(struct super_block *sb, u64 ino)
+{
+	struct inode *inode = ilookup(sb, ino);
+	bool hidden = false;
+
+	if (!inode)
+		return false;
+
+	hidden = susfs_is_inode_sus_path(inode);
+	iput(inode);
+	return hidden;
+}
 #endif
 
 int iterate_dir(struct file *file, struct dir_context *ctx)
@@ -145,17 +158,8 @@ static int fillonedir(struct dir_context *ctx, const char *name, int namlen,
 		return -EOVERFLOW;
 	}
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	{
-		struct inode *inode = ilookup(buf->sb, ino);
-		if (!inode)
-			goto orig_flow;
-		if (susfs_is_inode_sus_path(inode)) {
-			iput(inode);
-			return 0;
-		}
-		iput(inode);
-	}
-orig_flow:
+	if (should_hide_dirent(buf->sb, ino))
+		return 0;
 #endif
 	buf->result++;
 	dirent = buf->dirent;
@@ -245,17 +249,8 @@ static int filldir(struct dir_context *ctx, const char *name, int namlen,
 		return -EOVERFLOW;
 	}
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	{
-		struct inode *inode = ilookup(buf->sb, ino);
-		if (!inode)
-			goto orig_flow;
-		if (susfs_is_inode_sus_path(inode)) {
-			iput(inode);
-			return 0;
-		}
-		iput(inode);
-	}
-orig_flow:
+	if (should_hide_dirent(buf->sb, ino))
+		return 0;
 #endif
 	dirent = buf->previous;
 	if (dirent) {
@@ -348,17 +343,8 @@ static int filldir64(struct dir_context *ctx, const char *name, int namlen,
 	if (reclen > buf->count)
 		return -EINVAL;
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	{
-		struct inode *inode = ilookup(buf->sb, ino);
-		if (!inode)
-			goto orig_flow;
-		if (susfs_is_inode_sus_path(inode)) {
-			iput(inode);
-			return 0;
-		}
-		iput(inode);
-	}
-orig_flow:
+	if (should_hide_dirent(buf->sb, ino))
+		return 0;
 #endif
 	dirent = buf->previous;
 	if (dirent) {

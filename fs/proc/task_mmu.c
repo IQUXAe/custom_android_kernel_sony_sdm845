@@ -31,6 +31,20 @@
 extern void susfs_sus_ino_for_show_map_vma(unsigned long ino, dev_t *out_dev, unsigned long *out_ino);
 #endif
 
+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
+static bool susfs_sus_map_file_hidden(const struct file *file)
+{
+	struct inode *inode;
+
+	if (!file)
+		return false;
+
+	inode = file_inode(file);
+	return unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
+			susfs_is_current_proc_umounted());
+}
+#endif
+
 void task_mem(struct seq_file *m, struct mm_struct *mm)
 {
 	unsigned long text, lib, swap, ptes, pmds, anon, file, shmem;
@@ -371,9 +385,7 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
 	if (file) {
 		struct inode *inode = file_inode(vma->vm_file);
 #ifdef CONFIG_KSU_SUSFS_SUS_MAP
-		if (unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
-			susfs_is_current_proc_umounted()))
-		{
+		if (susfs_sus_map_file_hidden(file)) {
 			seq_printf(m, "%08lx-%08lx ---p %08llx %02x:%02x %lu ",
 				vma->vm_start, vma->vm_end,
 				(unsigned long long)pgoff,
@@ -878,10 +890,7 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
 	}
 #endif
 #ifdef CONFIG_KSU_SUSFS_SUS_MAP
-	if (!rollup_mode && vma->vm_file &&
-		unlikely(test_bit(AS_FLAGS_SUS_MAP, &file_inode(vma->vm_file)->i_mapping->flags) &&
-		susfs_is_current_proc_umounted()))
-	{
+	if (!rollup_mode && susfs_sus_map_file_hidden(vma->vm_file)) {
 		show_map_vma(m, vma, is_pid);
 		seq_printf(m,
 			   "Size:           %8lu kB\n"
@@ -1646,14 +1655,9 @@ static ssize_t pagemap_read(struct file *file, char __user *buf,
 #ifdef CONFIG_KSU_SUSFS_SUS_MAP
 		{
 			struct vm_area_struct *vma = find_vma(mm, start_vaddr);
-			if (vma && vma->vm_file) {
-				struct inode *inode = file_inode(vma->vm_file);
-				if (unlikely(test_bit(AS_FLAGS_SUS_MAP, &inode->i_mapping->flags) &&
-					susfs_is_current_proc_umounted()))
-				{
-					pm.buffer[0] = (pagemap_entry_t){.pme = 0};
-				}
-			}
+
+			if (vma && susfs_sus_map_file_hidden(vma->vm_file))
+				pm.buffer[0] = (pagemap_entry_t){ .pme = 0 };
 		}
 #endif
 		up_read(&mm->mmap_sem);
