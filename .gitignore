@@ -132,7 +132,6 @@ Android.bp
 
 temp_bluecross
 /out/
-kpatch/
 build_local.sh
 
 # Neutron Clang / antman

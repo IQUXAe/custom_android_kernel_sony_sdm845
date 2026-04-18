@@ -158,8 +158,20 @@ show_tool_versions() {
     log "ld.lld: $(command -v ld.lld)"
 }
 
+split_words() {
+    local input="$1"
+    local -n output_ref="$2"
+
+    output_ref=()
+    [[ -n "${input}" ]] || return 0
+
+    read -r -a output_ref <<< "${input}"
+}
+
 build_kernel() {
     local make_args=()
+    local extra_make_args=()
+    local target_args=()
 
     make_args+=("O=${OUT_DIR}")
     make_args+=("LLVM=1" "LLVM_IAS=1")
@@ -167,16 +179,15 @@ build_kernel() {
     make_args+=("CROSS_COMPILE_ARM32=arm-linux-gnueabi-")
     make_args+=("CLANG_TRIPLE=aarch64-linux-gnu-")
 
-    if [[ -n "${EXTRA_MAKE_ARGS}" ]]; then
-        make_args+=(${EXTRA_MAKE_ARGS})
-    fi
+    split_words "${EXTRA_MAKE_ARGS}" extra_make_args
+    split_words "${MAKE_TARGETS}" target_args
+    make_args+=("${extra_make_args[@]}")
 
     log "Running defconfig ${DEFCONFIG}"
     make "${make_args[@]}" "${DEFCONFIG}"
 
     log "Building kernel"
-    if [[ -n "${MAKE_TARGETS}" ]]; then
-        local target_args=(${MAKE_TARGETS})
+    if (( ${#target_args[@]} > 0 )); then
         make "${make_args[@]}" -j"${JOBS}" "${target_args[@]}"
     else
         make "${make_args[@]}" -j"${JOBS}"
