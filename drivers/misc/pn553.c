@@ -223,7 +223,6 @@ static ssize_t pn544_dev_read(struct file *filp, char __user *buf,
         }
     }
     tmp = pn544_dev->tx_kbuf;
-    memset(tmp, 0, pn544_dev->tx_kbuf_len);
     /* Read data */
     ret = i2c_master_recv(pn544_dev->client, tmp, count);
     mutex_unlock(&pn544_dev->read_mutex);
@@ -268,7 +267,6 @@ static ssize_t pn544_dev_write(struct file *filp, const char __user *buf,
         count = pn544_dev->rx_kbuf_len;
 
     tmp = pn544_dev->rx_kbuf;
-    memset(tmp, 0, pn544_dev->rx_kbuf_len);
     if (copy_from_user(tmp, buf, count)) {
         pr_err("%s : failed to copy from user space\n", __func__);
         return -EFAULT;
@@ -1266,6 +1264,38 @@ static void pn544_free_gpio(int gpio)
 		gpio_free(gpio);
 }
 
+static int pn544_request_gpio_input(int gpio, const char *label)
+{
+	int ret;
+
+	ret = pn544_request_gpio(gpio, label);
+	if (ret || !gpio_is_valid(gpio))
+		return ret;
+
+	ret = gpio_direction_input(gpio);
+	if (ret < 0)
+		pr_err("%s: failed to set %s gpio %d as input: %d\n",
+		       __func__, label, gpio, ret);
+
+	return ret;
+}
+
+static int pn544_request_gpio_output(int gpio, const char *label, int value)
+{
+	int ret;
+
+	ret = pn544_request_gpio(gpio, label);
+	if (ret || !gpio_is_valid(gpio))
+		return ret;
+
+	ret = gpio_direction_output(gpio, value);
+	if (ret < 0)
+		pr_err("%s: failed to set %s gpio %d as output: %d\n",
+		       __func__, label, gpio, ret);
+
+	return ret;
+}
+
 static int pn544_probe(struct i2c_client *client,
         const struct i2c_device_id *id)
 {
@@ -1342,61 +1372,28 @@ static int pn544_probe(struct i2c_client *client,
         goto err_free_buffers;
     }
 
-    ret = pn544_request_gpio(pn544_dev->irq_gpio, "nfc_int");
+    ret = pn544_request_gpio_input(pn544_dev->irq_gpio, "nfc_int");
     if (ret)
         goto err_free_buffers;
-    if (gpio_is_valid(pn544_dev->irq_gpio)) {
-        ret = gpio_direction_input(pn544_dev->irq_gpio);
-        if (ret < 0) {
-            pr_err("%s :not able to set irq_gpio as input\n", __func__);
-            goto err_free_irq;
-        }
-    }
 
-    ret = pn544_request_gpio(pn544_dev->ven_gpio, "nfc_ven");
+    ret = pn544_request_gpio_output(pn544_dev->ven_gpio, "nfc_ven", 0);
     if (ret)
         goto err_free_irq;
-    if (gpio_is_valid(pn544_dev->ven_gpio)) {
-        ret = gpio_direction_output(pn544_dev->ven_gpio, 0);
-        if (ret < 0) {
-            pr_err("%s : not able to set ven_gpio as output\n", __func__);
-            goto err_free_ven;
-        }
-    }
 
-    ret = pn544_request_gpio(pn544_dev->ese_pwr_gpio, "nfc_ese_pwr");
+    ret = pn544_request_gpio_output(pn544_dev->ese_pwr_gpio,
+                    "nfc_ese_pwr", 0);
     if (ret)
         goto err_free_ven;
-    if (gpio_is_valid(pn544_dev->ese_pwr_gpio)) {
-        ret = gpio_direction_output(pn544_dev->ese_pwr_gpio, 0);
-        if (ret < 0) {
-            pr_err("%s : not able to set ese_pwr gpio as output\n", __func__);
-            goto err_free_ese_pwr;
-        }
-    }
 
-    ret = pn544_request_gpio(pn544_dev->firm_gpio, "nfc_firm");
+    ret = pn544_request_gpio_output(pn544_dev->firm_gpio, "nfc_firm", 0);
     if (ret)
         goto err_free_ese_pwr;
-    if (gpio_is_valid(pn544_dev->firm_gpio)) {
-        ret = gpio_direction_output(pn544_dev->firm_gpio, 0);
-        if (ret < 0) {
-            pr_err("%s : not able to set firm_gpio as output\n", __func__);
-            goto err_free_firm;
-        }
-    }
 
 #ifdef ISO_RST
-    ret = pn544_request_gpio(pn544_dev->iso_rst_gpio, "nfc_iso_rst");
+    ret = pn544_request_gpio_output(pn544_dev->iso_rst_gpio,
+                    "nfc_iso_rst", 0);
     if (ret)
         goto err_free_firm;
-    if (gpio_is_valid(pn544_dev->iso_rst_gpio)) {
-        ret = gpio_direction_output(pn544_dev->iso_rst_gpio, 0);
-        if (ret < 0) {
-            pr_err("%s : not able to set iso rst gpio as output\n", __func__);
-            goto err_free_iso_rst;
-        }
-    }
 #endif
     /* init mutex and queues */
     init_waitqueue_head(&pn544_dev->read_wq);
@@ -1459,8 +1456,8 @@ static int pn544_probe(struct i2c_client *client,
 #ifdef ISO_RST
     err_free_iso_rst:
     pn544_free_gpio(pn544_dev->iso_rst_gpio);
-#endif
     err_free_firm:
+#endif
     pn544_free_gpio(pn544_dev->firm_gpio);
     err_free_ese_pwr:
     pn544_free_gpio(pn544_dev->ese_pwr_gpio);
