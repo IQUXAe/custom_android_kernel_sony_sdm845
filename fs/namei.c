@@ -3830,6 +3830,20 @@ out2:
 extern struct filename* susfs_get_redirected_path(unsigned long ino);
 #endif
 
+static struct file *path_openat_retry(struct nameidata *nd,
+		const struct open_flags *op, int flags)
+{
+	struct file *filp;
+
+	filp = path_openat(nd, op, flags | LOOKUP_RCU);
+	if (unlikely(filp == ERR_PTR(-ECHILD)))
+		filp = path_openat(nd, op, flags);
+	if (unlikely(filp == ERR_PTR(-ESTALE)))
+		filp = path_openat(nd, op, flags | LOOKUP_REVAL);
+
+	return filp;
+}
+
 struct file *do_filp_open(int dfd, struct filename *pathname,
 		const struct open_flags *op)
 {
@@ -3841,11 +3855,7 @@ struct file *do_filp_open(int dfd, struct filename *pathname,
 #endif
 
 	set_nameidata(&nd, dfd, pathname);
-	filp = path_openat(&nd, op, flags | LOOKUP_RCU);
-	if (unlikely(filp == ERR_PTR(-ECHILD)))
-		filp = path_openat(&nd, op, flags);
-	if (unlikely(filp == ERR_PTR(-ESTALE)))
-		filp = path_openat(&nd, op, flags | LOOKUP_REVAL);
+	filp = path_openat_retry(&nd, op, flags);
 #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
 	if (!IS_ERR(filp) &&
 		unlikely(test_bit(AS_FLAGS_OPEN_REDIRECT, &file_inode(filp)->i_mapping->flags) &&
@@ -3857,11 +3867,7 @@ struct file *do_filp_open(int dfd, struct filename *pathname,
 			filp_close(filp, NULL);
 			/* no need to do `putname(pathname);` here as it will be done by calling process */
 			set_nameidata(&nd, dfd, fake_pathname);
-			filp = path_openat(&nd, op, flags | LOOKUP_RCU);
-			if (unlikely(filp == ERR_PTR(-ECHILD)))
-				filp = path_openat(&nd, op, flags);
-			if (unlikely(filp == ERR_PTR(-ESTALE)))
-				filp = path_openat(&nd, op, flags | LOOKUP_REVAL);
+			filp = path_openat_retry(&nd, op, flags);
 			restore_nameidata();
 			putname(fake_pathname);
 			return filp;
