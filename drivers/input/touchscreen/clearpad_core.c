@@ -4412,7 +4412,7 @@ static void clearpad_funcarea_initialize(struct clearpad_t *this)
 	struct clearpad_area_t pointer_area;
 	struct clearpad_button_data_t *button;
 	struct clearpad_pointer_data_t *pointer_data;
-	static const char const *func_name[] = {
+	static const char * const func_name[] = {
 		[SYN_FUNCAREA_INSENSIBLE] = "insensible",
 		[SYN_FUNCAREA_POINTER] = "pointer",
 		[SYN_FUNCAREA_BUTTON] = "button",
@@ -7477,10 +7477,11 @@ static void clearpad_powerdown_core(struct clearpad_t *this, const char *id)
 	flush_workqueue(this->thread_resume.work_queue);
 	LOCK(&this->lock);
 	locked = touchctrl_lock_power(this, __func__, true, false);
-	if (!locked)
-		/* TODO consider this fatal error case */
+	if (!locked) {
 		LOGE(this, "failed to lock power(user=%d), "
 		     "might cause suspend error\n", touchctrl->power_user);
+		goto end;
+	}
 
 	this->touchctrl.will_powerdown = true;
 
@@ -9076,8 +9077,7 @@ static int clearpad_probe(struct platform_device *pdev)
 
 #if defined (CONFIG_FB) \
 &&          !defined(CONFIG_DRM_SDE_SPECIFIC_PANEL)
-	/* Execute post probe the first UNBLANK event
-	   TODO : Must update after API update. */
+	/* Register the legacy fb notifier used to trigger the first post-probe unblank path. */
 	HWLOGI(this, "register fb callback\n");
 	this->fb_notif.notifier_call = clearpad_fb_notifier_callback;
 	rc = fb_register_client(&this->fb_notif);
@@ -9087,8 +9087,7 @@ static int clearpad_probe(struct platform_device *pdev)
 	}
 #endif
 #ifdef CONFIG_DRM_SDE_SPECIFIC_PANEL
-	/* Execute post probe the first UNBLANK event
-	   TODO : Must update after API update. */
+	/* Register the DRM notifier used to trigger the first post-probe unblank path. */
 	HWLOGI(this, "register drm callback\n");
 	this->drm_notif.notifier_call = clearpad_drm_notifier_callback;
 	rc = drm_register_client(&this->drm_notif);
@@ -9395,27 +9394,28 @@ static void clearpad_thread_resume_work(struct work_struct *work)
 	}
 
 	this->interrupt.count = 0;
-	if (clearpad_handle_if_first_event(this) < 0)
+	if (clearpad_handle_if_first_event(this) < 0) {
 		LOGE(this, "failed to handle first event\n");
-		/* Workaround for Kagura sharp panel id 9  & Maple*/
-		if (this->chip_id == SYN_CHIP_3500) {
-			switch (this->device_info.customer_family) {
-			case 0xd0:
-			case 0xd1:
-				HWLOGW(this, "Force Calibration for Maple\n");
-				rc = clearpad_put(
-					SYNF(this, F54_ANALOG, COMMAND,
-						this->reg_offset.f54_cmd00),
-					ANALOG_COMMAND_FORCE_CALIBRATION_MASK);
-				if (rc)
-					LOGE(this, "failed to force calibrate\n");
-				break;
-			default:
-				break;
-			}
+	}
+	/* Workaround for Kagura sharp panel id 9 and Maple. */
+	if (this->chip_id == SYN_CHIP_3500) {
+		switch (this->device_info.customer_family) {
+		case 0xd0:
+		case 0xd1:
+			HWLOGW(this, "Force Calibration for Maple\n");
+			rc = clearpad_put(
+				SYNF(this, F54_ANALOG, COMMAND,
+					this->reg_offset.f54_cmd00),
+				ANALOG_COMMAND_FORCE_CALIBRATION_MASK);
+			if (rc)
+				LOGE(this, "failed to force calibrate\n");
+			break;
+		default:
+			break;
 		}
+	}
 
-		touchctrl_unlock_power(this, "cb_unblank");
+	touchctrl_unlock_power(this, "cb_unblank");
 
 	get_monotonic_boottime(&ts);
 	HWLOGI(this, "end thread_resume @ %ld.%06ld\n",
