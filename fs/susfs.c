@@ -322,7 +322,7 @@ static int susfs_update_sus_kstat_inode(char *target_pathname) {
 
 out_puth_put_path:
 	path_put(&path);
-	return 0;
+	return err;
 }
 
 void susfs_add_sus_kstat(void __user **user_info) {
@@ -566,22 +566,24 @@ static char *fake_cmdline_or_bootconfig = NULL;
 static bool susfs_is_fake_cmdline_or_bootconfig_set = false;
 
 void susfs_set_cmdline_or_bootconfig(void __user **user_info) {
-	struct st_susfs_spoof_cmdline_or_bootconfig *info = (struct st_susfs_spoof_cmdline_or_bootconfig *)kzalloc(sizeof(struct st_susfs_spoof_cmdline_or_bootconfig), GFP_KERNEL);
+	struct st_susfs_spoof_cmdline_or_bootconfig *info;
+	int err = 0;
 	
+	info = kzalloc(sizeof(*info), GFP_KERNEL);
 	if (!info) {
-		info->err = -ENOMEM;
-		goto out_copy_to_user;
+		err = -ENOMEM;
+		goto out_copy_to_user_err;
 	}
 
-	if (copy_from_user(info, (struct st_susfs_spoof_cmdline_or_bootconfig __user*)*user_info, sizeof(struct st_susfs_spoof_cmdline_or_bootconfig))) {
-		info->err = -EFAULT;
+	if (copy_from_user(info, (struct st_susfs_spoof_cmdline_or_bootconfig __user*)*user_info, sizeof(*info))) {
+		err = -EFAULT;
 		goto out_copy_to_user;
 	}
 
 	if (!fake_cmdline_or_bootconfig) {
 		fake_cmdline_or_bootconfig = (char *)kzalloc(SUSFS_FAKE_CMDLINE_OR_BOOTCONFIG_SIZE, GFP_KERNEL);
 		if (!fake_cmdline_or_bootconfig) {
-			info->err = -ENOMEM;
+			err = -ENOMEM;
 			goto out_copy_to_user;
 		}
 	}
@@ -593,18 +595,17 @@ void susfs_set_cmdline_or_bootconfig(void __user **user_info) {
 	spin_unlock(&susfs_spin_lock_set_cmdline_or_bootconfig);
 	susfs_is_fake_cmdline_or_bootconfig_set = true;
 	SUSFS_LOGI("fake_cmdline_or_bootconfig is set\n");
-	info->err = 0;
+	err = 0;
 out_copy_to_user:
-	if (info->err) {
+	if (err) {
 		susfs_is_fake_cmdline_or_bootconfig_set = false;
 	}
-	if (copy_to_user(&((struct st_susfs_spoof_cmdline_or_bootconfig __user*)*user_info)->err, &info->err, sizeof(info->err))) {
-		info->err = -EFAULT;
+	if (copy_to_user(&((struct st_susfs_spoof_cmdline_or_bootconfig __user*)*user_info)->err, &err, sizeof(err))) {
+		err = -EFAULT;
 	}
-	SUSFS_LOGI("CMD_SUSFS_SET_CMDLINE_OR_BOOTCONFIG -> ret: %d\n", info->err);
-	if (info) {
-		kfree(info);
-	}
+	kfree(info);
+out_copy_to_user_err:
+	SUSFS_LOGI("CMD_SUSFS_SET_CMDLINE_OR_BOOTCONFIG -> ret: %d\n", err);
 }
 
 int susfs_spoof_cmdline_or_bootconfig(struct seq_file *m) {
@@ -767,82 +768,86 @@ static int copy_config_to_buf(const char *config_string, char *buf_ptr, size_t *
 		SUSFS_LOGE("bufsize is not big enough to hold the string.\n");
 		return -EINVAL;
 	}
-	strncpy(buf_ptr, config_string, tmp_size);
+	memcpy(buf_ptr, config_string, tmp_size);
 	return 0;
 }
 
 void susfs_get_enabled_features(void __user **user_info) {
-	struct st_susfs_enabled_features *info = (struct st_susfs_enabled_features *)kzalloc(sizeof(struct st_susfs_enabled_features), GFP_KERNEL);
-	char *buf_ptr = NULL;
+	struct st_susfs_enabled_features *info;
+	char *buf_ptr;
 	size_t copied_size = 0;
+	int err = 0;
 
+	info = kzalloc(sizeof(*info), GFP_KERNEL);
 	if (!info) {
-		info->err = -ENOMEM;
-		goto out_copy_to_user;
+		err = -ENOMEM;
+		goto out_copy_to_user_err;
 	}
 
-	if (copy_from_user(info, (struct st_susfs_enabled_features __user*)*user_info, sizeof(struct st_susfs_enabled_features))) {
-		info->err = -EFAULT;
+	if (copy_from_user(info, (struct st_susfs_enabled_features __user*)*user_info, sizeof(*info))) {
+		err = -EFAULT;
 		goto out_copy_to_user;
 	}
 
 	buf_ptr = info->enabled_features;
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
-	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_SUS_PATH\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
-	if (info->err) goto out_copy_to_user;
+	err = copy_config_to_buf("CONFIG_KSU_SUSFS_SUS_PATH\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
+	if (err) goto out_copy_to_user;
 	buf_ptr = info->enabled_features + copied_size;
 #endif
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_SUS_MOUNT\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
-	if (info->err) goto out_copy_to_user;
+	err = copy_config_to_buf("CONFIG_KSU_SUSFS_SUS_MOUNT\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
+	if (err) goto out_copy_to_user;
 	buf_ptr = info->enabled_features + copied_size;
 #endif
 #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
-	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_SUS_KSTAT\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
-	if (info->err) goto out_copy_to_user;
+	err = copy_config_to_buf("CONFIG_KSU_SUSFS_SUS_KSTAT\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
+	if (err) goto out_copy_to_user;
 	buf_ptr = info->enabled_features + copied_size;
 #endif
 #ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
-	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_SPOOF_UNAME\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
-	if (info->err) goto out_copy_to_user;
+	err = copy_config_to_buf("CONFIG_KSU_SUSFS_SPOOF_UNAME\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
+	if (err) goto out_copy_to_user;
 	buf_ptr = info->enabled_features + copied_size;
 #endif
 #ifdef CONFIG_KSU_SUSFS_ENABLE_LOG
-	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_ENABLE_LOG\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
-	if (info->err) goto out_copy_to_user;
+	err = copy_config_to_buf("CONFIG_KSU_SUSFS_ENABLE_LOG\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
+	if (err) goto out_copy_to_user;
 	buf_ptr = info->enabled_features + copied_size;
 #endif
 #ifdef CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
-	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
-	if (info->err) goto out_copy_to_user;
+	err = copy_config_to_buf("CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
+	if (err) goto out_copy_to_user;
 	buf_ptr = info->enabled_features + copied_size;
 #endif
 #ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
-	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
-	if (info->err) goto out_copy_to_user;
+	err = copy_config_to_buf("CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
+	if (err) goto out_copy_to_user;
 	buf_ptr = info->enabled_features + copied_size;
 #endif
 #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
-	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_OPEN_REDIRECT\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
-	if (info->err) goto out_copy_to_user;
+	err = copy_config_to_buf("CONFIG_KSU_SUSFS_OPEN_REDIRECT\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
+	if (err) goto out_copy_to_user;
 	buf_ptr = info->enabled_features + copied_size;
 #endif
 #ifdef CONFIG_KSU_SUSFS_SUS_MAP
-	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_SUS_MAP\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
-	if (info->err) goto out_copy_to_user;
+	err = copy_config_to_buf("CONFIG_KSU_SUSFS_SUS_MAP\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
+	if (err) goto out_copy_to_user;
 	buf_ptr = info->enabled_features + copied_size;
 #endif
 
-	info->err = 0;
+	err = 0;
 out_copy_to_user:
-	if (copy_to_user((struct st_susfs_enabled_features __user*)*user_info, info, sizeof(struct st_susfs_enabled_features))) {
-		info->err = -EFAULT;
+	info->err = err;
+	if (copy_to_user((struct st_susfs_enabled_features __user*)*user_info, info, sizeof(*info))) {
+		err = -EFAULT;
 	}
-	SUSFS_LOGI("CMD_SUSFS_SHOW_ENABLED_FEATURES -> ret: %d\n", info->err);
-	if (info) {
-		kfree(info);
-	}
+	kfree(info);
+out_copy_to_user_err:
+	if (err && copy_to_user(&((struct st_susfs_enabled_features __user*)*user_info)->err, &err, sizeof(err)))
+		err = -EFAULT;
+	SUSFS_LOGI("CMD_SUSFS_SHOW_ENABLED_FEATURES -> ret: %d\n", err);
 }
 
 /* show_variant */
@@ -1059,14 +1064,21 @@ static int susfs_sdcard_monitor_fn(void *data)
 	g = fsnotify_alloc_group(&fsnotify_ops);
 #endif
 	if (IS_ERR(g)) {
-		return PTR_ERR(g);
+		ret = PTR_ERR(g);
+		g = NULL;
+		return ret;
 	}
 
 	ret = watch_one_dir(&g_watch);
+	if (ret) {
+		fsnotify_destroy_group(g);
+		g = NULL;
+		return ret;
+	}
 
 	SUSFS_LOGI("ret: %d\n", ret);
 
-	return 0;
+	return ret;
 }
 
 void susfs_start_sdcard_monitor_fn(void) {
