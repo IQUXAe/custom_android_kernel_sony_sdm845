@@ -789,60 +789,78 @@ static int msm_ssphy_qmp_extcon_register(struct msm_ssphy_qmp *phy,
 	return 0;
 }
 
+static int msm_ssphy_qmp_get_required_clk(struct device *dev,
+					  const char *name, struct clk **clk)
+{
+	int ret;
+
+	*clk = devm_clk_get(dev, name);
+	if (!IS_ERR(*clk))
+		return 0;
+
+	ret = PTR_ERR(*clk);
+	if (ret != -EPROBE_DEFER)
+		dev_err(dev, "failed to get %s\n", name);
+
+	*clk = NULL;
+	return ret;
+}
+
+static int msm_ssphy_qmp_get_named_optional_clk(struct device *dev,
+						const char *name,
+						struct clk **clk)
+{
+	int ret;
+
+	*clk = NULL;
+	if (of_property_match_string(dev->of_node, "clock-names", name) < 0)
+		return 0;
+
+	*clk = devm_clk_get(dev, name);
+	if (!IS_ERR(*clk))
+		return 0;
+
+	ret = PTR_ERR(*clk);
+	if (ret != -EPROBE_DEFER)
+		dev_err(dev, "failed to get %s ret %d\n", name, ret);
+
+	*clk = NULL;
+	return ret;
+}
+
+static void msm_ssphy_qmp_get_optional_clk(struct device *dev,
+					   const char *name, struct clk **clk)
+{
+	*clk = devm_clk_get(dev, name);
+	if (IS_ERR(*clk))
+		*clk = NULL;
+}
+
 static int msm_ssphy_qmp_get_clks(struct msm_ssphy_qmp *phy, struct device *dev)
 {
 	int ret = 0;
 
-	phy->aux_clk = devm_clk_get(dev, "aux_clk");
-	if (IS_ERR(phy->aux_clk)) {
-		ret = PTR_ERR(phy->aux_clk);
-		phy->aux_clk = NULL;
-		if (ret != -EPROBE_DEFER)
-			dev_err(dev, "failed to get aux_clk\n");
+	ret = msm_ssphy_qmp_get_required_clk(dev, "aux_clk", &phy->aux_clk);
+	if (ret)
 		goto err;
-	}
 	clk_set_rate(phy->aux_clk, clk_round_rate(phy->aux_clk, ULONG_MAX));
 
-	if (of_property_match_string(dev->of_node,
-			"clock-names", "cfg_ahb_clk") >= 0) {
-		phy->cfg_ahb_clk = devm_clk_get(dev, "cfg_ahb_clk");
-		if (IS_ERR(phy->cfg_ahb_clk)) {
-			ret = PTR_ERR(phy->cfg_ahb_clk);
-			if (ret != -EPROBE_DEFER)
-				dev_err(dev,
-				"failed to get cfg_ahb_clk ret %d\n", ret);
-			goto err;
-		}
-	}
-
-	phy->pipe_clk = devm_clk_get(dev, "pipe_clk");
-	if (IS_ERR(phy->pipe_clk)) {
-		ret = PTR_ERR(phy->pipe_clk);
-		phy->pipe_clk = NULL;
-		if (ret != -EPROBE_DEFER)
-			dev_err(dev, "failed to get pipe_clk\n");
+	ret = msm_ssphy_qmp_get_named_optional_clk(dev, "cfg_ahb_clk",
+						      &phy->cfg_ahb_clk);
+	if (ret)
 		goto err;
-	}
 
-	phy->ref_clk_src = devm_clk_get(dev, "ref_clk_src");
-	if (IS_ERR(phy->ref_clk_src))
-		phy->ref_clk_src = NULL;
+	ret = msm_ssphy_qmp_get_required_clk(dev, "pipe_clk", &phy->pipe_clk);
+	if (ret)
+		goto err;
 
-	phy->ref_clk = devm_clk_get(dev, "ref_clk");
-	if (IS_ERR(phy->ref_clk))
-		phy->ref_clk = NULL;
+	msm_ssphy_qmp_get_optional_clk(dev, "ref_clk_src", &phy->ref_clk_src);
+	msm_ssphy_qmp_get_optional_clk(dev, "ref_clk", &phy->ref_clk);
 
-	if (of_property_match_string(dev->of_node,
-			"clock-names", "com_aux_clk") >= 0) {
-		phy->com_aux_clk = devm_clk_get(dev, "com_aux_clk");
-		if (IS_ERR(phy->com_aux_clk)) {
-			ret = PTR_ERR(phy->com_aux_clk);
-			if (ret != -EPROBE_DEFER)
-				dev_err(dev,
-				"failed to get com_aux_clk ret %d\n", ret);
-			goto err;
-		}
-	}
+	ret = msm_ssphy_qmp_get_named_optional_clk(dev, "com_aux_clk",
+						      &phy->com_aux_clk);
+	if (ret)
+		goto err;
 
 err:
 	return ret;

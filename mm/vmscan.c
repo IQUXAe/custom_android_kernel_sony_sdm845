@@ -246,26 +246,27 @@ unsigned long pgdat_reclaimable_pages(struct pglist_data *pgdat)
  */
 unsigned long lruvec_lru_size(struct lruvec *lruvec, enum lru_list lru, int zone_idx)
 {
+	struct pglist_data *pgdat = lruvec_pgdat(lruvec);
+	bool memcg_disabled = mem_cgroup_disabled();
 	unsigned long lru_size;
 	int zid;
 
-	if (!mem_cgroup_disabled())
+	if (!memcg_disabled)
 		lru_size = mem_cgroup_get_lru_size(lruvec, lru);
 	else
-		lru_size = node_page_state(lruvec_pgdat(lruvec), NR_LRU_BASE + lru);
+		lru_size = node_page_state(pgdat, NR_LRU_BASE + lru);
 
 	for (zid = zone_idx + 1; zid < MAX_NR_ZONES; zid++) {
-		struct zone *zone = &lruvec_pgdat(lruvec)->node_zones[zid];
+		struct zone *zone = &pgdat->node_zones[zid];
 		unsigned long size;
 
 		if (!managed_zone(zone))
 			continue;
 
-		if (!mem_cgroup_disabled())
+		if (!memcg_disabled)
 			size = mem_cgroup_get_zone_lru_size(lruvec, lru, zid);
 		else
-			size = zone_page_state(&lruvec_pgdat(lruvec)->node_zones[zid],
-				       NR_ZONE_LRU_BASE + lru);
+			size = zone_page_state(zone, NR_ZONE_LRU_BASE + lru);
 		lru_size -= min(size, lru_size);
 	}
 

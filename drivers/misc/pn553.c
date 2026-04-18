@@ -180,6 +180,11 @@ static irqreturn_t pn544_dev_irq_handler(int irq, void *dev_id)
     return IRQ_HANDLED;
 }
 
+static bool pn544_i2c_error_should_log(int ret)
+{
+    return ret != -107 && ret != -EIO;
+}
+
 static ssize_t pn544_dev_read(struct file *filp, char __user *buf,
         size_t count, loff_t *offset)
 {
@@ -234,7 +239,7 @@ static ssize_t pn544_dev_read(struct file *filp, char __user *buf,
 #endif
 
     if (ret < 0) {
-        if (ret != -107 && ret != -EIO)
+        if (pn544_i2c_error_should_log(ret))
             pr_err("%s: i2c_master_recv returned %d\n", __func__, ret);
         return ret;
     }
@@ -280,7 +285,7 @@ static ssize_t pn544_dev_write(struct file *filp, const char __user *buf,
          * Do not spam the log with 'i2c_master_send returned -107'.
          * This can happen very frequently during NFC polling when the chip is asleep.
          */
-        if (ret != -107 && ret != -EIO)
+        if (pn544_i2c_error_should_log(ret))
             pr_err("%s : i2c_master_send returned %d\n", __func__, ret);
         ret = -EIO;
     }
