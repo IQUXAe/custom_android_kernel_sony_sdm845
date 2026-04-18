@@ -32,6 +32,7 @@
 #include <linux/idr.h>
 #include <linux/sysfs.h>
 #include <linux/debugfs.h>
+#include <linux/mm.h>
 
 #include "zram_drv.h"
 
@@ -44,6 +45,7 @@ static const char *default_compressor = "lz4";
 
 /* Module params (documentation at end) */
 static unsigned int num_devices = 1;
+static unsigned int default_size_percent = CONFIG_ZRAM_DEF_SIZE_PERCENT;
 /*
  * Pages that compress to sizes equals or greater than this are stored
  * uncompressed in memory.
@@ -78,6 +80,17 @@ static inline bool init_done(struct zram *zram)
 static inline struct zram *dev_to_zram(struct device *dev)
 {
 	return (struct zram *)dev_to_disk(dev)->private_data;
+}
+
+static u64 zram_default_disksize(void)
+{
+	u64 total_bytes;
+
+	if (!default_size_percent)
+		return 0;
+
+	total_bytes = (u64)totalram_pages << PAGE_SHIFT;
+	return PAGE_ALIGN(div_u64(total_bytes * default_size_percent, 100));
 }
 
 static unsigned long zram_get_handle(struct zram *zram, u32 index)
@@ -1728,11 +1741,36 @@ static void zram_reset_device(struct zram *zram)
 	reset_bdev(zram);
 }
 
+static int zram_init_device(struct zram *zram, u64 disksize)
+{
+	struct zcomp *comp;
+
+	if (!disksize)
+		return -EINVAL;
+
+	disksize = PAGE_ALIGN(disksize);
+	if (!zram_meta_alloc(zram, disksize))
+		return -ENOMEM;
+
+	comp = zcomp_create(zram->compressor);
+	if (IS_ERR(comp)) {
+		pr_err("Cannot initialise %s compressing backend\n",
+		       zram->compressor);
+		zram_meta_free(zram, disksize);
+		return PTR_ERR(comp);
+	}
+
+	zram->comp = comp;
+	zram->disksize = disksize;
+	set_capacity(zram->disk, zram->disksize >> SECTOR_SHIFT);
+	revalidate_disk(zram->disk);
+	return 0;
+}
+
 static ssize_t disksize_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t len)
 {
 	u64 disksize;
-	struct zcomp *comp;
 	struct zram *zram = dev_to_zram(dev);
 	int err;
 
@@ -1747,31 +1785,14 @@ static ssize_t disksize_store(struct device *dev,
 		goto out_unlock;
 	}
 
-	disksize = PAGE_ALIGN(disksize);
-	if (!zram_meta_alloc(zram, disksize)) {
-		err = -ENOMEM;
+	err = zram_init_device(zram, disksize);
+	if (err)
 		goto out_unlock;
-	}
 
-	comp = zcomp_create(zram->compressor);
-	if (IS_ERR(comp)) {
-		pr_err("Cannot initialise %s compressing backend\n",
-				zram->compressor);
-		err = PTR_ERR(comp);
-		goto out_free_meta;
-	}
-
-	zram->comp = comp;
-	zram->disksize = disksize;
-	set_capacity(zram->disk, zram->disksize >> SECTOR_SHIFT);
-
-	revalidate_disk(zram->disk);
 	up_write(&zram->init_lock);
 
 	return len;
 
-out_free_meta:
-	zram_meta_free(zram, disksize);
 out_unlock:
 	up_write(&zram->init_lock);
 	return err;
@@ -1984,9 +2005,36 @@ static int zram_add(void)
 
 	strlcpy(zram->compressor, default_compressor, sizeof(zram->compressor));
 
+	if (device_id == 0 && default_size_percent) {
+		u64 disksize = zram_default_disksize();
+
+		if (disksize) {
+			down_write(&zram->init_lock);
+			ret = zram_init_device(zram, disksize);
+			up_write(&zram->init_lock);
+			if (ret) {
+				pr_err("Failed to initialize %s with default size %llu bytes\n",
+				       zram->disk->disk_name, disksize);
+				goto out_cleanup_disk;
+			}
+
+			pr_info("%s default disksize set to %llu bytes (%u%% RAM)\n",
+				zram->disk->disk_name, disksize,
+				default_size_percent);
+		}
+	}
+
 	zram_debugfs_register(zram);
 	pr_info("Added device: %s\n", zram->disk->disk_name);
 	return device_id;
+
+out_cleanup_disk:
+	del_gendisk(zram->disk);
+	blk_cleanup_queue(zram->disk->queue);
+	put_disk(zram->disk);
+	idr_remove(&zram_index_idr, device_id);
+	kfree(zram);
+	return ret;
 
 out_free_queue:
 	blk_cleanup_queue(queue);
@@ -2154,6 +2202,9 @@ module_exit(zram_exit);
 
 module_param(num_devices, uint, 0);
 MODULE_PARM_DESC(num_devices, "Number of pre-created zram devices");
+module_param(default_size_percent, uint, 0644);
+MODULE_PARM_DESC(default_size_percent,
+		 "Default zram0 disksize as a percentage of total RAM");
 
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Nitin Gupta <ngupta@vflare.org>");

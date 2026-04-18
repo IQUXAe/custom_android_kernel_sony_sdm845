@@ -23,6 +23,16 @@ config ZRAM_LZ4_AUTHORITATIVE
 	  This option forces the usage of LZ4 as the ZRAM compression algorithm.
 	  It overrides the default compressor selection.
 
+config ZRAM_DEF_SIZE_PERCENT
+	int "Default zram0 size as percentage of RAM"
+	depends on ZRAM
+	range 0 200
+	default 0
+	help
+	  Set a non-zero value to auto-initialize zram0 with a disksize based
+	  on total RAM during driver init. A value of 50 means zram0 will be
+	  sized to half of physical memory.
+
 config ZRAM_WRITEBACK
        bool "Write back incompressible or idle page to backing device"
        depends on ZRAM
