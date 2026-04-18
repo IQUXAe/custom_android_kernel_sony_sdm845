@@ -363,6 +363,16 @@ extern bool ksu_su_compat_enabled __read_mostly;
 extern bool __ksu_is_allow_uid_for_current(uid_t uid);
 extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
 			int *flags);
+
+static void susfs_handle_faccessat(int *dfd, const char __user **filename,
+				   int *mode)
+{
+	if (likely(susfs_is_current_proc_umounted()) || !ksu_su_compat_enabled)
+		return;
+
+	if (unlikely(__ksu_is_allow_uid_for_current(current_uid().val)))
+		ksu_handle_faccessat(dfd, filename, mode, NULL);
+}
 #endif
 
 /*
@@ -381,15 +391,7 @@ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
 	unsigned int lookup_flags = LOOKUP_FOLLOW;
 
 #ifdef CONFIG_KSU_SUSFS
-	if (likely(susfs_is_current_proc_umounted()) || !ksu_su_compat_enabled) {
-		goto orig_flow;
-	}
-
-	if (unlikely(__ksu_is_allow_uid_for_current(current_uid().val))) {
-		ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
-	}
-
-orig_flow:
+	susfs_handle_faccessat(&dfd, &filename, &mode);
 #endif
 
 	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */

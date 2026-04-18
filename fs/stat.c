@@ -27,22 +27,24 @@
 extern void susfs_sus_ino_for_generic_fillattr(unsigned long ino, struct kstat *stat);
 #endif
 
+#ifdef CONFIG_KSU_SUSFS
+extern bool ksu_su_compat_enabled __read_mostly;
+extern bool __ksu_is_allow_uid_for_current(uid_t uid);
+extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
+
+static void susfs_handle_vfs_stat(int *dfd, const char __user **filename,
+				  int *flag)
+{
+	if (likely(susfs_is_current_proc_umounted()) || !ksu_su_compat_enabled)
+		return;
+
+	if (unlikely(__ksu_is_allow_uid_for_current(current_uid().val)))
+		ksu_handle_stat(dfd, filename, flag);
+}
+#endif
+
 void generic_fillattr(struct inode *inode, struct kstat *stat)
 {
-#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
-	if (unlikely(test_bit(AS_FLAGS_SUS_KSTAT, &inode->i_mapping->flags)) &&
-		likely(susfs_is_current_proc_umounted()))
-	{
-		susfs_sus_ino_for_generic_fillattr(inode->i_ino, stat);
-		stat->mode = inode->i_mode;
-		stat->rdev = inode->i_rdev;
-		stat->uid = inode->i_uid;
-		stat->gid = inode->i_gid;
-		return;
-	}
-#endif
-	stat->dev = inode->i_sb->s_dev;
-	stat->ino = inode->i_ino;
 	stat->mode = inode->i_mode;
 	stat->nlink = inode->i_nlink;
 	stat->uid = inode->i_uid;
@@ -54,6 +56,16 @@ void generic_fillattr(struct inode *inode, struct kstat *stat)
 	stat->ctime = inode->i_ctime;
 	stat->blksize = i_blocksize(inode);
 	stat->blocks = inode->i_blocks;
+
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+	if (unlikely(test_bit(AS_FLAGS_SUS_KSTAT, &inode->i_mapping->flags)) &&
+		likely(susfs_is_current_proc_umounted())) {
+		susfs_sus_ino_for_generic_fillattr(inode->i_ino, stat);
+		return;
+	}
+#endif
+	stat->dev = inode->i_sb->s_dev;
+	stat->ino = inode->i_ino;
 }
 
 EXPORT_SYMBOL(generic_fillattr);
@@ -118,12 +130,6 @@ int vfs_fstat(unsigned int fd, struct kstat *stat)
 }
 EXPORT_SYMBOL(vfs_fstat);
 
-#ifdef CONFIG_KSU_SUSFS
-extern bool ksu_su_compat_enabled __read_mostly;
-extern bool __ksu_is_allow_uid_for_current(uid_t uid);
-extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
-#endif
-
 int vfs_fstatat(int dfd, const char __user *filename, struct kstat *stat,
 		int flag)
 {
@@ -132,15 +138,7 @@ int vfs_fstatat(int dfd, const char __user *filename, struct kstat *stat,
 	unsigned int lookup_flags = 0;
 
 #ifdef CONFIG_KSU_SUSFS
-	if (likely(susfs_is_current_proc_umounted()) || !ksu_su_compat_enabled) {
-		goto orig_flow;
-	}
-
-	if (unlikely(__ksu_is_allow_uid_for_current(current_uid().val))) {
-		ksu_handle_stat(&dfd, &filename, &flag);
-	}
-
-orig_flow:
+	susfs_handle_vfs_stat(&dfd, &filename, &flag);
 #endif
 
 	if ((flag & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT |
