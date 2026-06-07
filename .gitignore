@@ -134,17 +134,3 @@ temp_bluecross
 /out/
 build_local.sh
 
-# Neutron Clang / antman
-/bin/
-/lib/clang/
-/lib/cmake/
-/lib/libLTO.so*
-/lib/libRemarks.so*
-/lib/libclang-cpp.so*
-/lib/libclang.so*
-/lib/libxml2.so*
-/lib/x86_64-unknown-linux-gnu/
-/share/clang/
-/share/gdb/
-/share/opt-viewer/
-antman
